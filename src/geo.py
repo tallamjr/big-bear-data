@@ -25,7 +25,7 @@ if is_nvidia_gpu_available():
     collect_args["engine"] = "gpu"
     print("NVIDIA GPU detected, using GPU engine for collection.")
 else:
-    collect_args["streaming"] = True
+    collect_args["engine"] = "streaming"
     print("No NVIDIA GPU detected, using streaming mode for collection.")
 
 # Lazy load the Parquet file (does NOT load into memory)

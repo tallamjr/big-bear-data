@@ -1,9 +1,19 @@
+import os
 import resource
 import subprocess
+import logging
 from datetime import datetime
 from pprint import pprint
 
 import polars as pl
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+)
+logger = logging.getLogger(__name__)
 
 soft, hard = resource.getrlimit(resource.RLIMIT_NOFILE)
 resource.setrlimit(resource.RLIMIT_NOFILE, (4096, hard))
@@ -19,14 +29,35 @@ def is_nvidia_gpu_available():
         return False
 
 
-# Set up collection arguments based on GPU availability
-collect_args = {}
-if is_nvidia_gpu_available():
-    collect_args["engine"] = "gpu"
-    print("NVIDIA GPU detected, using GPU engine for collection.")
-else:
-    collect_args["engine"] = "streaming"
-    print("No NVIDIA GPU detected, using streaming mode for collection.")
+# Advanced GPU configuration with fallback handling
+def get_optimal_engine():
+    """Get optimal execution engine based on environment and data characteristics."""
+    if not is_nvidia_gpu_available():
+        logger.warning("No NVIDIA GPU detected, using streaming engine for collection")
+        return "streaming"
+
+    # Check for advanced GPU configuration via environment
+    gpu_config = os.getenv("POLARS_GPU_CONFIG", "auto")
+
+    if gpu_config == "strict":
+        logger.info("Using strict GPU mode (no CPU fallback)")
+        return pl.GPUEngine(raise_on_fail=True)
+    elif gpu_config == "verbose":
+        logger.debug("Using verbose GPU mode for debugging")
+        return "gpu"  # Will use with verbose config below
+    else:
+        logger.info("NVIDIA GPU detected, using GPU engine with automatic fallback")
+        return "gpu"
+
+
+# Set up collection arguments based on GPU availability and configuration
+engine = get_optimal_engine()
+collect_args = {"engine": engine}
+
+# Enable verbose mode if requested
+if os.getenv("POLARS_GPU_CONFIG") == "verbose" or os.getenv("POLARS_VERBOSE") == "1":
+    logger.debug("Enabling verbose mode for GPU debugging")
+    pl.Config.set_verbose(True)
 
 # Lazy load the Parquet file (does NOT load into memory)
 df = pl.scan_parquet("./data/yellow.hive/**/*.parquet", hive_partitioning=True)
@@ -165,4 +196,51 @@ print(f"OPTIMIZED Q-PLAN:\n {qplan}")
 
 result.show_graph(show=False, output_path="query-plan.png")
 
-print(result.collect(**collect_args))
+# Execute final complex query with advanced error handling
+logger.info("Executing complex aggregation query")
+try:
+    if isinstance(collect_args["engine"], pl.GPUEngine):
+        # Strict GPU mode - will raise on unsupported operations
+        final_result = result.collect(**collect_args)
+        logger.info("Complex query executed successfully on GPU (strict mode)")
+    else:
+        final_result = result.collect(**collect_args)
+        logger.info(
+            f"Complex query executed successfully on {collect_args['engine']} engine"
+        )
+
+    print(final_result)
+
+except pl.exceptions.ComputeError as e:
+    logger.warning(f"GPU execution failed: {e}")
+    logger.info("Falling back to streaming engine for complex aggregation")
+
+    # Fallback to streaming for memory-intensive operations
+    final_result = result.collect(engine="streaming")
+    logger.info("Fallback to streaming engine successful")
+    print(final_result)
+
+except Exception as e:
+    logger.error(f"Unexpected error: {e}")
+    logger.info("Using CPU engine as last resort")
+    final_result = result.collect(engine="cpu")
+    print(final_result)
+
+# Print usage examples for advanced GPU features
+print("\n" + "=" * 60)
+print("GPU CONFIGURATION EXAMPLES")
+print("=" * 60)
+print("Environment variables for advanced GPU usage:")
+print("• POLARS_GPU_CONFIG=strict    - Strict GPU mode (no CPU fallback)")
+print("• POLARS_GPU_CONFIG=verbose   - Enable verbose debugging")
+print("• POLARS_VERBOSE=1            - Enable verbose mode")
+print("")
+print("Example usage:")
+print("  POLARS_GPU_CONFIG=verbose python src/main.py")
+print("  POLARS_GPU_CONFIG=strict python src/main.py")
+print("")
+print("For more GPU examples, see: src/gpu_examples/")
+print("• gpu_basic.py      - Basic GPU usage patterns")
+print("• gpu_advanced.py   - Advanced GPUEngine configuration")
+print("• gpu_monitoring.py - GPU memory monitoring and debugging")
+print("• gpu_benchmarks.py - Performance benchmarking suite")

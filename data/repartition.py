@@ -60,5 +60,5 @@ for year in range(2018, 2019):
     print(f"Hive partition written to disk for: {year}...")
 
 df = pl.scan_parquet("yellow.hive/**/*.parquet", hive_partitioning=True)
-count = df.select(pl.len().count()).collect(engine="streaming")
+count = df.select(pl.len()).collect(engine="streaming")
 print(count)

@@ -23,4 +23,3 @@ for year in {2009..2024}; do
         fi
     done
 done
-
