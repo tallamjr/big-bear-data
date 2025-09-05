@@ -96,24 +96,21 @@ flowchart LR
     A[Data Source] --> B{Evaluation Strategy}
 
     B -->|Eager| C[Load All Data]
-    C --> D[Process Step 1]
-    D --> E[Process Step 2]
-    E --> F[Result]
+    C --> D[Result]
 
     B -->|Lazy| G[Build Query Graph]
     G --> H[Optimize Plan]
-    H --> I[Execute Once]
+    H --> I[Execute]
     I --> J[Result]
 
     style C fill:#ffcdd2
-    style D fill:#ffcdd2
-    style E fill:#ffcdd2
     style G fill:#c8e6c9
     style H fill:#c8e6c9
     style I fill:#c8e6c9
 ```
 
 The lazy API provides **10-100x performance improvements** through query optimization:
+
 
 ```
 Eager API (Immediate Execution)         Lazy API (Deferred Execution)
