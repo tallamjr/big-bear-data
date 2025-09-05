@@ -1,7 +1,22 @@
 [project]
-name = "big-bear-demo"
+name = "big-bear-data"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = ["azure-storage-blob", "graphviz", "polars", "polars-h3", "h3"]
+dependencies = [
+    "azure-storage-blob",
+    "graphviz",
+    "polars",
+    "polars-h3",
+    "h3",
+    "pandas>=2.3.2",
+    "duckdb>=1.3.2",
+    "pandera>=0.26.1",
+    "matplotlib>=3.10.6",
+    "seaborn>=0.13.2",
+    "plotly>=6.3.0",
+    "psutil>=7.0.0",
+    "memory-profiler>=0.61.0",
+    "pyarrow>=21.0.0",
+]
