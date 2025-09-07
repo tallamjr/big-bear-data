@@ -25,5 +25,5 @@ dependencies = [
     "polars[gpu]; sys_platform=='linux'",
 ]
 
-[tool.uv]
-extra-index-url = ["https://pypi.nvidia.com"]
+[[tool.uv.index]]
+url = "https://pypi.nvidia.com/"

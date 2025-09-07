@@ -1,10 +1,13 @@
 """Visualization tools for benchmark results"""
 
-import polars as pl
-import matplotlib.pyplot as plt
-import seaborn as sns
 from pathlib import Path
 from typing import Optional
+
+import matplotlib.pyplot as plt
+import numpy as np
+import pandas as pd
+import polars as pl
+import seaborn as sns
 
 
 class BenchmarkVisualizer:
@@ -98,28 +101,58 @@ class BenchmarkVisualizer:
         if df is None:
             return
 
-        # Calculate speedup relative to baseline
-        pdf = df.filter(pl.col("execution_time_ms") > 0).to_pandas()
+        # Filter out failed benchmarks and get only successful ones
+        successful_df = df.filter(pl.col("execution_time_ms") > 0)
+        pdf = successful_df.to_pandas()
 
         # Get baseline times
-        baseline_times = pdf[pdf["library"] == baseline].set_index("query_name")[
-            "execution_time_ms"
-        ]
+        baseline_data = pdf[pdf["library"] == baseline]
+        if baseline_data.empty:
+            print(f"No baseline data found for library: {baseline}")
+            return
+
+        baseline_times = baseline_data.set_index("query_name")["execution_time_ms"]
 
         speedup_data = []
-        for _, row in pdf.iterrows():
-            query = row["query_name"]
-            if query in baseline_times.index and row["library"] != baseline:
-                speedup = baseline_times[query] / row["execution_time_ms"]
-                speedup_data.append(
-                    {"query_name": query, "library": row["library"], "speedup": speedup}
-                )
+
+        # Group by library and query to handle the case where some queries might be missing for some libraries
+        libraries = pdf["library"].unique()
+        queries = baseline_times.index.unique()
+
+        for library in libraries:
+            if library == baseline:
+                continue
+
+            library_data = pdf[pdf["library"] == library]
+            library_times = library_data.set_index("query_name")["execution_time_ms"]
+
+            for query in queries:
+                if query in library_times.index:
+                    baseline_time = baseline_times[query]
+                    library_time = library_times[query]
+
+                    if baseline_time > 0 and library_time > 0:
+                        speedup = baseline_time / library_time
+                        # Only include finite, positive speedup values
+                        if pd.notna(speedup) and np.isfinite(speedup) and speedup > 0:
+                            speedup_data.append(
+                                {
+                                    "query_name": query,
+                                    "library": library,
+                                    "speedup": speedup,
+                                }
+                            )
 
         if not speedup_data:
             print(f"No speedup data available for baseline: {baseline}")
             return
 
         speedup_df = pl.DataFrame(speedup_data).to_pandas()
+
+        # Ensure we have consistent data types
+        speedup_df["speedup"] = speedup_df["speedup"].astype(float)
+        speedup_df["query_name"] = speedup_df["query_name"].astype(str)
+        speedup_df["library"] = speedup_df["library"].astype(str)
 
         plt.figure(figsize=(15, 8))
 
