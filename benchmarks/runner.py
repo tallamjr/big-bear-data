@@ -4,12 +4,12 @@ import argparse
 import logging
 import subprocess
 
-from benchmarks.framework import BenchmarkFramework
-from benchmarks.polars_bench import PolarsBenchmark
-from benchmarks.duckdb_bench import DuckDBBenchmark
-from benchmarks.cudf_bench import CuDFBenchmark
-from benchmarks.pandas_bench import PandasBenchmark
-from benchmarks.visualizer import BenchmarkVisualizer
+from .framework import BenchmarkFramework
+from .polars_bench import PolarsBenchmark
+from .duckdb_bench import DuckDBBenchmark
+from .cudf_bench import CuDFBenchmark
+from .pandas_bench import PandasBenchmark
+from .visualizer import BenchmarkVisualizer
 
 logger = logging.getLogger(__name__)
 
