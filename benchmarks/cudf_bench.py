@@ -49,7 +49,7 @@ class cuDFBenchmark:
         result.columns = ["o_orderstatus", "total_revenue", "order_count"]
         result = result.sort_values("total_revenue", ascending=False)
 
-        validate_query_result(result.to_pandas(), "simple_aggregation", "cudf")
+        validate_query_result(result, "simple_aggregation", "cudf")
         return result
 
     # Query 2: Customer segments with high account balance
@@ -70,7 +70,7 @@ class cuDFBenchmark:
         result.columns = ["c_mktsegment", "avg_acctbal", "customer_count"]
         result = result.sort_values("avg_acctbal", ascending=False)
 
-        validate_query_result(result.to_pandas(), "customer_segments", "cudf")
+        validate_query_result(result, "customer_segments", "cudf")
         return result
 
     # Query 3: Orders with customer information
@@ -93,7 +93,7 @@ class cuDFBenchmark:
             .head(1000)
         )
 
-        validate_query_result(result.to_pandas(), "order_customer_join", "cudf")
+        validate_query_result(result, "order_customer_join", "cudf")
         return result
 
     # Query 4: Top suppliers by revenue
@@ -121,7 +121,7 @@ class cuDFBenchmark:
             .head(100)
         )
 
-        validate_query_result(result.to_pandas(), "supplier_revenue", "cudf")
+        validate_query_result(result, "supplier_revenue", "cudf")
         return result
 
     # Query 5: Detailed order analysis
@@ -153,7 +153,7 @@ class cuDFBenchmark:
             .head(1000)
         )
 
-        validate_query_result(result.to_pandas(), "detailed_orders", "cudf")
+        validate_query_result(result, "detailed_orders", "cudf")
         return result
 
     # Query 6: Revenue trends with ranking
@@ -181,7 +181,7 @@ class cuDFBenchmark:
 
         result = monthly_revenue.sort_values("revenue_rank")
 
-        validate_query_result(result.to_pandas(), "revenue_ranking", "cudf")
+        validate_query_result(result, "revenue_ranking", "cudf")
         return result
 
 

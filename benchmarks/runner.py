@@ -1,26 +1,36 @@
 """Main benchmark runner"""
 
-from .framework import BenchmarkFramework
-from .polars_bench import PolarsBenchmark
-from .duckdb_bench import DuckDBBenchmark
-from .cudf_bench import CuDFBenchmark
-from .pandas_bench import PandasBenchmark
-from .visualizer import BenchmarkVisualizer
+import logging
+import subprocess
+
+from benchmarks.framework import BenchmarkFramework
+from benchmarks.polars_bench import PolarsBenchmark
+from benchmarks.duckdb_bench import DuckDBBenchmark
+from benchmarks.cudf_bench import CuDFBenchmark
+from benchmarks.pandas_bench import PandasBenchmark
+from benchmarks.visualizer import BenchmarkVisualizer
+
+logger = logging.getLogger(__name__)
 
 
 class BenchmarkRunner:
     def __init__(
         self,
-        data_path: str = "data/tpch/tpch-10",
+        data_path: str = "benchmarks/data/tpch-10",
         results_file: str = "benchmark_results.parquet",
     ):
         self.data_path = data_path
         self.framework = BenchmarkFramework(results_file)
+        self.gpu_available = self._check_gpu_availability()
 
         # Initialize benchmark implementations
         self.polars = PolarsBenchmark(data_path)
         self.duckdb = DuckDBBenchmark(data_path)
-        self.cudf = CuDFBenchmark(data_path)
+        if self.gpu_available:
+            self.cudf = CuDFBenchmark(data_path)
+        else:
+            self.cudf = None
+            logger.info("GPU not available - skipping cuDF initialization")
         self.pandas = PandasBenchmark(data_path)
 
         # Query methods mapping
@@ -33,6 +43,14 @@ class BenchmarkRunner:
             "revenue_ranking",
         ]
 
+    def _check_gpu_availability(self):
+        """Check if GPU is available via nvidia-smi"""
+        try:
+            subprocess.run(["nvidia-smi"], check=True, capture_output=True)
+            return True
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            return False
+
     def run_polars_benchmarks(self):
         """Run Polars CPU streaming benchmarks"""
         print("=== Running Polars CPU Streaming Benchmarks ===")
@@ -43,6 +61,10 @@ class BenchmarkRunner:
 
     def run_polars_gpu_benchmarks(self):
         """Run Polars GPU benchmarks"""
+        if not self.gpu_available:
+            logger.info("Skipping Polars GPU benchmarks - GPU not available")
+            return
+
         print("=== Running Polars GPU Benchmarks ===")
 
         for query in self.queries:
@@ -50,7 +72,7 @@ class BenchmarkRunner:
                 gpu_method = getattr(self.polars, f"{query}_gpu")
                 self.framework.benchmark_query(gpu_method, "polars_gpu", query)
             except Exception as e:
-                print(f"GPU benchmark failed for {query}: {e}")
+                logger.error(f"GPU benchmark failed for {query}: {e}")
 
     def run_duckdb_benchmarks(self):
         """Run DuckDB benchmarks"""
@@ -62,6 +84,10 @@ class BenchmarkRunner:
 
     def run_cudf_benchmarks(self):
         """Run cuDF benchmarks"""
+        if not self.gpu_available or self.cudf is None:
+            logger.info("Skipping cuDF benchmarks - GPU not available")
+            return
+
         print("=== Running cuDF Benchmarks ===")
 
         for query in self.queries:
@@ -69,7 +95,7 @@ class BenchmarkRunner:
                 method = getattr(self.cudf, query)
                 self.framework.benchmark_query(method, "cudf", query)
             except Exception as e:
-                print(f"cuDF benchmark failed for {query}: {e}")
+                logger.error(f"cuDF benchmark failed for {query}: {e}")
 
     def run_pandas_benchmarks(self):
         """Run Pandas benchmarks"""

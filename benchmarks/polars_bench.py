@@ -1,7 +1,9 @@
 """Polars benchmark implementations (CPU streaming and GPU)"""
 
-import polars as pl
 from pathlib import Path
+
+import polars as pl
+
 from .schemas import validate_query_result
 
 
@@ -35,12 +37,10 @@ class PolarsBenchmark:
                 ]
             )
             .sort("total_revenue", descending=True)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(
-            result.to_pandas(), "simple_aggregation", "polars_streaming"
-        )
+        validate_query_result(result, "simple_aggregation", "polars_streaming")
         return result
 
     def simple_aggregation_gpu(self):
@@ -59,7 +59,7 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "simple_aggregation", "polars_gpu")
+        validate_query_result(result, "simple_aggregation", "polars_gpu")
         return result
 
     # Query 2: Customer segments with high account balance
@@ -77,12 +77,10 @@ class PolarsBenchmark:
                 ]
             )
             .sort("avg_acctbal", descending=True)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(
-            result.to_pandas(), "customer_segments", "polars_streaming"
-        )
+        validate_query_result(result, "customer_segments", "polars_streaming")
         return result
 
     def customer_segments_gpu(self):
@@ -102,7 +100,7 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "customer_segments", "polars_gpu")
+        validate_query_result(result, "customer_segments", "polars_gpu")
         return result
 
     # Query 3: Orders with customer information
@@ -116,12 +114,10 @@ class PolarsBenchmark:
             .filter(pl.col("o_totalprice") > 100000)
             .sort("o_totalprice", descending=True)
             .head(1000)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(
-            result.to_pandas(), "order_customer_join", "polars_streaming"
-        )
+        validate_query_result(result, "order_customer_join", "polars_streaming")
         return result
 
     def order_customer_join_gpu(self):
@@ -137,7 +133,7 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "order_customer_join", "polars_gpu")
+        validate_query_result(result, "order_customer_join", "polars_gpu")
         return result
 
     # Query 4: Top suppliers by revenue
@@ -159,12 +155,10 @@ class PolarsBenchmark:
             .select(["s_name", "s_nationkey", "total_revenue"])
             .sort("total_revenue", descending=True)
             .head(100)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(
-            result.to_pandas(), "supplier_revenue", "polars_streaming"
-        )
+        validate_query_result(result, "supplier_revenue", "polars_streaming")
         return result
 
     def supplier_revenue_gpu(self):
@@ -188,7 +182,7 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "supplier_revenue", "polars_gpu")
+        validate_query_result(result, "supplier_revenue", "polars_gpu")
         return result
 
     # Query 5: Detailed order analysis
@@ -212,10 +206,10 @@ class PolarsBenchmark:
             .select(["c_name", "o_orderdate", "line_total", "c_mktsegment"])
             .sort("line_total", descending=True)
             .head(1000)
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(result.to_pandas(), "detailed_orders", "polars_streaming")
+        validate_query_result(result, "detailed_orders", "polars_streaming")
         return result
 
     def detailed_orders_gpu(self):
@@ -241,7 +235,7 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "detailed_orders", "polars_gpu")
+        validate_query_result(result, "detailed_orders", "polars_gpu")
         return result
 
     # Query 6: Revenue trends with ranking
@@ -263,10 +257,10 @@ class PolarsBenchmark:
                 ]
             )
             .sort("revenue_rank")
-            .collect(streaming=True)
+            .collect(engine="streaming")
         )
 
-        validate_query_result(result.to_pandas(), "revenue_ranking", "polars_streaming")
+        validate_query_result(result, "revenue_ranking", "polars_streaming")
         return result
 
     def revenue_ranking_gpu(self):
@@ -290,5 +284,5 @@ class PolarsBenchmark:
             .collect(engine="gpu")
         )
 
-        validate_query_result(result.to_pandas(), "revenue_ranking", "polars_gpu")
+        validate_query_result(result, "revenue_ranking", "polars_gpu")
         return result

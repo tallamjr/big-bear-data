@@ -1,25 +1,32 @@
 """Pandera validation schemas for benchmark result consistency"""
 
-import pandera as pa
-from pandera import Column, DataFrameSchema
+import polars as pl
+import pandera.polars as pa
+from pandera.polars import Column, DataFrameSchema
+from pandera.engines.polars_engine import (
+    DateTime,
+    String,
+    Int64,
+    Float64,
+)
 
 
 # Results schema for parquet storage
 BenchmarkResultsSchema = DataFrameSchema(
     {
-        "timestamp": Column(pa.DateTime),
+        "timestamp": Column(DateTime),
         "library": Column(
-            pa.String,
+            String,
             checks=pa.Check.isin(
                 ["polars_streaming", "polars_gpu", "duckdb", "cudf", "pandas"]
             ),
         ),
-        "query_name": Column(pa.String),
-        "dataset_size": Column(pa.String),
-        "execution_time_ms": Column(pa.Float, checks=pa.Check.ge(0)),
-        "peak_memory_mb": Column(pa.Float, checks=pa.Check.ge(0)),
-        "row_count": Column(pa.Int, checks=pa.Check.ge(0)),
-        "system_info": Column(pa.String),
+        "query_name": Column(String),
+        "dataset_size": Column(String),
+        "execution_time_ms": Column(Float64, checks=pa.Check.ge(0)),
+        "peak_memory_mb": Column(Float64, checks=pa.Check.ge(0)),
+        "row_count": Column(Int64, checks=pa.Check.ge(0)),
+        "system_info": Column(String),
     },
     strict=True,
 )
@@ -28,57 +35,57 @@ BenchmarkResultsSchema = DataFrameSchema(
 # Query result validation schemas
 SimpleAggregationSchema = DataFrameSchema(
     {
-        "o_orderstatus": Column(pa.String),
-        "total_revenue": Column(pa.Float, checks=pa.Check.ge(0)),
-        "order_count": Column(pa.Int, checks=pa.Check.ge(0)),
+        "o_orderstatus": Column(str),
+        "total_revenue": Column(pl.Float64, checks=pa.Check.ge(0), coerce=True),
+        "order_count": Column(pl.Int64, checks=pa.Check.ge(0), coerce=True),
     }
 )
 
 CustomerSegmentSchema = DataFrameSchema(
     {
-        "c_mktsegment": Column(pa.String),
-        "avg_acctbal": Column(pa.Float),
-        "customer_count": Column(pa.Int, checks=pa.Check.ge(0)),
+        "c_mktsegment": Column(str),
+        "avg_acctbal": Column(pl.Float64, coerce=True),
+        "customer_count": Column(pl.Int64, checks=pa.Check.ge(0), coerce=True),
     }
 )
 
 OrderCustomerJoinSchema = DataFrameSchema(
     {
-        "o_orderkey": Column(pa.Int),
-        "c_name": Column(pa.String),
-        "o_totalprice": Column(pa.Float, checks=pa.Check.ge(0)),
-        "c_mktsegment": Column(pa.String),
+        "o_orderkey": Column(pl.Int64, coerce=True),
+        "c_name": Column(str),
+        "o_totalprice": Column(pl.Float64, checks=pa.Check.ge(0), coerce=True),
+        "c_mktsegment": Column(str),
     }
 )
 
 SupplierRevenueSchema = DataFrameSchema(
     {
-        "s_name": Column(pa.String),
-        "s_nationkey": Column(pa.Int),
-        "total_revenue": Column(pa.Float, checks=pa.Check.ge(0)),
+        "s_name": Column(str),
+        "s_nationkey": Column(pl.Int64, coerce=True),
+        "total_revenue": Column(pl.Float64, checks=pa.Check.ge(0), coerce=True),
     }
 )
 
 DetailedOrderSchema = DataFrameSchema(
     {
-        "c_name": Column(pa.String),
-        "o_orderdate": Column(pa.Date),
-        "line_total": Column(pa.Float, checks=pa.Check.ge(0)),
-        "c_mktsegment": Column(pa.String),
+        "c_name": Column(str),
+        "o_orderdate": Column(pl.Date, coerce=True),
+        "line_total": Column(pl.Float64, checks=pa.Check.ge(0), coerce=True),
+        "c_mktsegment": Column(str),
     }
 )
 
 RevenueRankingSchema = DataFrameSchema(
     {
-        "year_month": Column(pa.String),
-        "monthly_revenue": Column(pa.Float, checks=pa.Check.ge(0)),
-        "revenue_rank": Column(pa.Int, checks=pa.Check.ge(1)),
+        "year_month": Column(str),
+        "monthly_revenue": Column(pl.Float64, checks=pa.Check.ge(0), coerce=True),
+        "revenue_rank": Column(pl.Int64, checks=pa.Check.ge(1), coerce=True),
     }
 )
 
 
 def validate_query_result(result_df, query_name: str, library: str):
-    """Validate query results using appropriate schema"""
+    """Validate query results using appropriate schema, converting to Polars format"""
     schema_map = {
         "simple_aggregation": SimpleAggregationSchema,
         "customer_segments": CustomerSegmentSchema,
@@ -93,8 +100,19 @@ def validate_query_result(result_df, query_name: str, library: str):
 
     schema = schema_map[query_name]
 
+    # Convert result to Polars DataFrame for validation
+    if isinstance(result_df, pl.DataFrame):
+        # Already a Polars DataFrame
+        polars_df = result_df
+    elif hasattr(result_df, "to_polars"):
+        # cuDF DataFrame
+        polars_df = result_df.to_polars()
+    else:
+        # pandas DataFrame (DuckDB results) or other pandas-like
+        polars_df = pl.from_pandas(result_df)
+
     try:
-        schema.validate(result_df)
+        schema.validate(polars_df)
         return True
     except pa.errors.SchemaError as e:
         print(f"Validation failed for {library} - {query_name}: {e}")
