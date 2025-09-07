@@ -202,7 +202,7 @@ class PolarsBenchmark:
             )
             .join(tables["orders"], left_on="l_orderkey", right_on="o_orderkey")
             .join(tables["customer"], left_on="o_custkey", right_on="c_custkey")
-            .filter(pl.col("o_orderdate").dt.year() == 1995)
+            .filter(pl.col("o_orderdate").cast(pl.Date).dt.year() == 1995)
             .select(["c_name", "o_orderdate", "line_total", "c_mktsegment"])
             .sort("line_total", descending=True)
             .head(1000)
@@ -228,7 +228,7 @@ class PolarsBenchmark:
             )
             .join(tables["orders"], left_on="l_orderkey", right_on="o_orderkey")
             .join(tables["customer"], left_on="o_custkey", right_on="c_custkey")
-            .filter(pl.col("o_orderdate").dt.year() == 1995)
+            .filter(pl.col("o_orderdate").cast(pl.Date).dt.year() == 1995)
             .select(["c_name", "o_orderdate", "line_total", "c_mktsegment"])
             .sort("line_total", descending=True)
             .head(1000)
@@ -245,7 +245,12 @@ class PolarsBenchmark:
         result = (
             tables["orders"]
             .with_columns(
-                [pl.col("o_orderdate").dt.strftime("%Y-%m").alias("year_month")]
+                [
+                    pl.col("o_orderdate")
+                    .cast(pl.Date)
+                    .dt.strftime("%Y-%m")
+                    .alias("year_month")
+                ]
             )
             .group_by("year_month")
             .agg([pl.sum("o_totalprice").alias("monthly_revenue")])
@@ -269,7 +274,12 @@ class PolarsBenchmark:
         result = (
             tables["orders"]
             .with_columns(
-                [pl.col("o_orderdate").dt.strftime("%Y-%m").alias("year_month")]
+                [
+                    pl.col("o_orderdate")
+                    .cast(pl.Date)
+                    .dt.strftime("%Y-%m")
+                    .alias("year_month")
+                ]
             )
             .group_by("year_month")
             .agg([pl.sum("o_totalprice").alias("monthly_revenue")])

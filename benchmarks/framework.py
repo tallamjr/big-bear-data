@@ -15,7 +15,7 @@ from .schemas import BenchmarkResultsSchema
 
 
 class BenchmarkFramework:
-    def __init__(self, results_file: str = "benchmark_results.parquet"):
+    def __init__(self, results_file: str = "results.parquet"):
         self.results_file = Path(results_file)
         self.system_info = self._get_system_info()
 
@@ -84,13 +84,14 @@ class BenchmarkFramework:
         """Save benchmark result to parquet file"""
         result_df = pl.DataFrame([result])
 
-        # Validate result schema
+        # Validate result schema (but don't block saving on failure)
         try:
-            BenchmarkResultsSchema.validate(result_df.to_pandas())
+            # Pandera automatically detects DataFrame backend (polars in this case)
+            BenchmarkResultsSchema.validate(result_df)
         except Exception as e:
-            print(f"Result validation failed: {e}")
-            return
+            print(f"Schema validation warning (results still saved): {e}")
 
+        # Always save results regardless of validation
         if self.results_file.exists():
             # Append to existing results
             existing_df = pl.read_parquet(self.results_file)

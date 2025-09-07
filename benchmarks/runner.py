@@ -1,5 +1,6 @@
 """Main benchmark runner"""
 
+import argparse
 import logging
 import subprocess
 
@@ -17,7 +18,7 @@ class BenchmarkRunner:
     def __init__(
         self,
         data_path: str = "benchmarks/data/tpch-10",
-        results_file: str = "benchmark_results.parquet",
+        results_file: str = "results.parquet",
     ):
         self.data_path = data_path
         self.framework = BenchmarkFramework(results_file)
@@ -130,7 +131,23 @@ class BenchmarkRunner:
 
 def main():
     """Main entry point"""
-    runner = BenchmarkRunner()
+    parser = argparse.ArgumentParser(description="Run TPC-H benchmarks")
+    parser.add_argument(
+        "--data-path",
+        type=str,
+        default="benchmarks/data/tpch-10",
+        help="Path to TPC-H data directory (default: benchmarks/data/tpch-10)",
+    )
+    parser.add_argument(
+        "--results-file",
+        type=str,
+        default="results.parquet",
+        help="Output file for benchmark results (default: results.parquet)",
+    )
+
+    args = parser.parse_args()
+
+    runner = BenchmarkRunner(data_path=args.data_path, results_file=args.results_file)
     runner.run_all_benchmarks()
 
 

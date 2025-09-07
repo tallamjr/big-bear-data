@@ -9,7 +9,7 @@ from typing import Optional
 
 
 class BenchmarkVisualizer:
-    def __init__(self, results_file: str = "benchmark_results.parquet"):
+    def __init__(self, results_file: str = "results.parquet"):
         self.results_file = Path(results_file)
 
     def load_results(self) -> Optional[pl.DataFrame]:
@@ -284,7 +284,7 @@ class BenchmarkVisualizer:
                 f"{row['query_name']:20s}: {row['library']:15s} ({row['avg_time']:6.1f}ms)"
             )
 
-    def create_dashboard(self, output_dir: str = "benchmark_plots"):
+    def create_dashboard(self, output_dir: str = "benchmarks/plots"):
         """Generate complete set of visualizations"""
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
