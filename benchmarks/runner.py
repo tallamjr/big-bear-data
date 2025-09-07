@@ -106,20 +106,44 @@ class BenchmarkRunner:
             method = getattr(self.pandas, query)
             self.framework.benchmark_query(method, "pandas", query)
 
-    def run_all_benchmarks(self):
+    def run_all_benchmarks(self, skip_libraries=None):
         """Run all benchmarks"""
+        if skip_libraries is None:
+            skip_libraries = []
+
         print("Starting comprehensive benchmark suite...")
         print(f"Data path: {self.data_path}")
         print(f"Results file: {self.framework.results_file}")
         print(f"System info: {self.framework.system_info}")
+        if skip_libraries:
+            print(f"Skipping libraries: {', '.join(skip_libraries)}")
         print()
 
-        # Run all benchmark suites
-        self.run_pandas_benchmarks()
-        self.run_polars_benchmarks()
-        self.run_duckdb_benchmarks()
-        self.run_cudf_benchmarks()
-        self.run_polars_gpu_benchmarks()
+        # Run benchmark suites based on skip list
+        if "pandas" not in skip_libraries:
+            self.run_pandas_benchmarks()
+        else:
+            print("=== Skipping Pandas Benchmarks ===")
+
+        if "polars" not in skip_libraries and "polars_streaming" not in skip_libraries:
+            self.run_polars_benchmarks()
+        else:
+            print("=== Skipping Polars CPU Streaming Benchmarks ===")
+
+        if "duckdb" not in skip_libraries:
+            self.run_duckdb_benchmarks()
+        else:
+            print("=== Skipping DuckDB Benchmarks ===")
+
+        if "cudf" not in skip_libraries:
+            self.run_cudf_benchmarks()
+        else:
+            print("=== Skipping cuDF Benchmarks ===")
+
+        if "polars_gpu" not in skip_libraries and "polars" not in skip_libraries:
+            self.run_polars_gpu_benchmarks()
+        else:
+            print("=== Skipping Polars GPU Benchmarks ===")
 
         print("\nBenchmark suite completed!")
 
@@ -144,11 +168,18 @@ def main():
         default="results.parquet",
         help="Output file for benchmark results (default: results.parquet)",
     )
+    parser.add_argument(
+        "--skip-libraries",
+        type=str,
+        nargs="*",
+        default=[],
+        help="Libraries to skip (e.g., --skip-libraries pandas cudf)",
+    )
 
     args = parser.parse_args()
 
     runner = BenchmarkRunner(data_path=args.data_path, results_file=args.results_file)
-    runner.run_all_benchmarks()
+    runner.run_all_benchmarks(skip_libraries=args.skip_libraries)
 
 
 if __name__ == "__main__":
