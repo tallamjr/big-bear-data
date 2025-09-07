@@ -128,8 +128,15 @@ class BenchmarkVisualizer:
 
             for query in queries:
                 if query in library_times.index:
-                    baseline_time = baseline_times[query]
-                    library_time = library_times[query]
+                    # Get scalar values, handling potential duplicates by taking the first
+                    baseline_time = baseline_times.loc[query]
+                    library_time = library_times.loc[query]
+
+                    # Ensure we have scalar values
+                    if isinstance(baseline_time, pd.Series):
+                        baseline_time = baseline_time.iloc[0]
+                    if isinstance(library_time, pd.Series):
+                        library_time = library_time.iloc[0]
 
                     if baseline_time > 0 and library_time > 0:
                         speedup = baseline_time / library_time
