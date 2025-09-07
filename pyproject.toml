@@ -20,4 +20,10 @@ dependencies = [
     "memory-profiler>=0.61.0",
     "pyarrow>=21.0.0",
     "tpchgen-cli>=2.0.0",
+    # GPU support for Linux systems only
+    "cudf-cu12==25.8.*; sys_platform=='linux'",
+    "polars[gpu]; sys_platform=='linux'",
 ]
+
+[tool.uv]
+extra-index-url = ["https://pypi.nvidia.com"]
