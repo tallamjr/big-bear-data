@@ -3,7 +3,6 @@
 import polars as pl
 import matplotlib.pyplot as plt
 import seaborn as sns
-import plotly.express as px
 from pathlib import Path
 from typing import Optional
 
@@ -19,9 +18,7 @@ class BenchmarkVisualizer:
             return None
         return pl.read_parquet(self.results_file)
 
-    def plot_execution_times(
-        self, save_path: Optional[str] = None, interactive: bool = False
-    ):
+    def plot_execution_times(self, save_path: Optional[str] = None):
         """Create bar plot comparing execution times across libraries and queries"""
         df = self.load_results()
         if df is None:
@@ -30,10 +27,7 @@ class BenchmarkVisualizer:
         # Filter out failed runs (negative times)
         df = df.filter(pl.col("execution_time_ms") > 0)
 
-        if interactive:
-            return self._plot_execution_times_interactive(df, save_path)
-        else:
-            return self._plot_execution_times_static(df, save_path)
+        return self._plot_execution_times_static(df, save_path)
 
     def _plot_execution_times_static(
         self, df: pl.DataFrame, save_path: Optional[str] = None
@@ -67,39 +61,6 @@ class BenchmarkVisualizer:
 
         plt.show()
 
-    def _plot_execution_times_interactive(
-        self, df: pl.DataFrame, save_path: Optional[str] = None
-    ):
-        """Interactive plotly plot"""
-        # Convert to pandas for plotly
-        pdf = df.to_pandas()
-
-        fig = px.bar(
-            pdf,
-            x="query_name",
-            y="execution_time_ms",
-            color="library",
-            title="Benchmark Results: Execution Time by Query and Library",
-            labels={
-                "execution_time_ms": "Execution Time (ms)",
-                "query_name": "Query",
-                "library": "Library",
-            },
-            log_y=True,
-            color_discrete_sequence=px.colors.qualitative.Set2,
-        )
-
-        fig.update_layout(
-            xaxis_tickangle=-45, height=600, showlegend=True, font=dict(size=12)
-        )
-
-        if save_path:
-            fig.write_html(save_path)
-            print(f"Interactive plot saved to {save_path}")
-
-        fig.show()
-        return fig
-
     def plot_memory_usage(self, save_path: Optional[str] = None):
         """Plot memory usage comparison"""
         df = self.load_results()
@@ -126,45 +87,6 @@ class BenchmarkVisualizer:
         if save_path:
             plt.savefig(save_path, dpi=300, bbox_inches="tight")
             print(f"Memory plot saved to {save_path}")
-
-        plt.show()
-
-    def plot_performance_matrix(self, save_path: Optional[str] = None):
-        """Create performance matrix heatmap"""
-        df = self.load_results()
-        if df is None:
-            return
-
-        # Create pivot table
-        pivot_df = (
-            df.filter(pl.col("execution_time_ms") > 0)
-            .to_pandas()
-            .pivot_table(
-                values="execution_time_ms",
-                index="query_name",
-                columns="library",
-                aggfunc="mean",
-            )
-        )
-
-        plt.figure(figsize=(12, 8))
-
-        sns.heatmap(
-            pivot_df,
-            annot=True,
-            fmt=".1f",
-            cmap="YlOrRd",
-            cbar_kws={"label": "Execution Time (ms)"},
-        )
-
-        plt.title("Performance Matrix: Average Execution Time", fontsize=16)
-        plt.xlabel("Library", fontsize=12)
-        plt.ylabel("Query", fontsize=12)
-        plt.tight_layout()
-
-        if save_path:
-            plt.savefig(save_path, dpi=300, bbox_inches="tight")
-            print(f"Heatmap saved to {save_path}")
 
         plt.show()
 
@@ -291,15 +213,9 @@ class BenchmarkVisualizer:
 
         print(f"Generating benchmark dashboard in {output_path}...")
 
-        # Generate all plots
-        self.plot_execution_times(
-            output_path / "execution_times.png", interactive=False
-        )
-        self.plot_execution_times(
-            output_path / "execution_times_interactive.html", interactive=True
-        )
+        # Generate selected plots (excluding performance matrix and interactive execution times)
+        self.plot_execution_times(output_path / "execution_times.png")
         self.plot_memory_usage(output_path / "memory_usage.png")
-        self.plot_performance_matrix(output_path / "performance_matrix.png")
         self.plot_speedup_comparison(save_path=output_path / "speedup_comparison.png")
 
         print(f"\nDashboard complete. Files saved in {output_path}")

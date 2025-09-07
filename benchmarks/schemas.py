@@ -1,109 +1,43 @@
-"""Pandera validation schemas for benchmark result consistency"""
-
-import pandera as pa
-from pandera import Column, DataFrameSchema
-
-
-# Results schema for parquet storage - Universal pandera schema
-BenchmarkResultsSchema = DataFrameSchema(
-    {
-        "timestamp": Column(pa.DateTime),
-        "library": Column(
-            pa.String,
-            checks=pa.Check.isin(
-                ["polars_streaming", "polars_gpu", "duckdb", "cudf", "pandas"]
-            ),
-        ),
-        "query_name": Column(pa.String),
-        "dataset_size": Column(pa.String),
-        "execution_time_ms": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "peak_memory_mb": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "row_count": Column(pa.Int64, checks=pa.Check.ge(0)),
-        "system_info": Column(pa.String),
-    },
-    strict=True,
-)
-
-
-# Query result validation schemas - Universal schemas work across pandas/polars/cudf
-SimpleAggregationSchema = DataFrameSchema(
-    {
-        "o_orderstatus": Column(pa.String),
-        "total_revenue": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "order_count": Column(pa.Int64, checks=pa.Check.ge(0)),
-    }
-)
-
-CustomerSegmentSchema = DataFrameSchema(
-    {
-        "c_mktsegment": Column(pa.String),
-        "avg_acctbal": Column(pa.Float64),
-        "customer_count": Column(pa.Int64, checks=pa.Check.ge(0)),
-    }
-)
-
-OrderCustomerJoinSchema = DataFrameSchema(
-    {
-        "o_orderkey": Column(pa.Int64),
-        "c_name": Column(pa.String),
-        "o_totalprice": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "c_mktsegment": Column(pa.String),
-    }
-)
-
-SupplierRevenueSchema = DataFrameSchema(
-    {
-        "s_name": Column(pa.String),
-        "s_nationkey": Column(pa.Int64),
-        "total_revenue": Column(pa.Float64, checks=pa.Check.ge(0)),
-    }
-)
-
-DetailedOrderSchema = DataFrameSchema(
-    {
-        "c_name": Column(pa.String),
-        "o_orderdate": Column(pa.DateTime),
-        "line_total": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "c_mktsegment": Column(pa.String),
-    }
-)
-
-RevenueRankingSchema = DataFrameSchema(
-    {
-        "year_month": Column(pa.String),
-        "monthly_revenue": Column(pa.Float64, checks=pa.Check.ge(0)),
-        "revenue_rank": Column(pa.Int64, checks=pa.Check.ge(1)),
-    }
-)
+"""Simple validation for benchmark result consistency"""
 
 
 def validate_query_result(result_df, query_name: str, library: str):
     """
-    Validate query results using pandera's universal backend support.
-    Works with pandas, polars, cudf DataFrames automatically.
+    Lightweight validation for benchmark results.
+    Focuses on basic sanity checks rather than complex schema validation.
     """
-    schema_map = {
-        "simple_aggregation": SimpleAggregationSchema,
-        "customer_segments": CustomerSegmentSchema,
-        "order_customer_join": OrderCustomerJoinSchema,
-        "supplier_revenue": SupplierRevenueSchema,
-        "detailed_orders": DetailedOrderSchema,
-        "revenue_ranking": RevenueRankingSchema,
-    }
-
-    if query_name not in schema_map:
-        print(f"No schema defined for query: {query_name}")
-        return True  # Skip validation for undefined queries
-
-    schema = schema_map[query_name]
-
     try:
-        # Pandera automatically detects the DataFrame backend and validates accordingly
-        schema.validate(result_df)
+        # Basic sanity checks
+        if len(result_df) == 0:
+            print(f"Warning: {library} - {query_name} returned no results")
+            return False
+
+        # Query-specific validations
+        if query_name == "simple_aggregation":
+            required_cols = ["o_orderstatus", "total_revenue", "order_count"]
+        elif query_name == "customer_segments":
+            required_cols = ["c_mktsegment", "avg_acctbal", "customer_count"]
+        elif query_name == "order_customer_join":
+            required_cols = ["o_orderkey", "c_name", "o_totalprice", "c_mktsegment"]
+        elif query_name == "supplier_revenue":
+            required_cols = ["s_name", "s_nationkey", "total_revenue"]
+        elif query_name == "detailed_orders":
+            required_cols = ["c_name", "o_orderdate", "line_total", "c_mktsegment"]
+        elif query_name == "revenue_ranking":
+            required_cols = ["year_month", "monthly_revenue", "revenue_rank"]
+        else:
+            # Unknown query, skip validation
+            return True
+
+        # Check for required columns
+        df_cols = set(result_df.columns)
+        missing_cols = set(required_cols) - df_cols
+        if missing_cols:
+            print(f"Warning: {library} - {query_name} missing columns: {missing_cols}")
+            return False
+
         return True
-    except pa.errors.SchemaError as e:
-        print(f"Query result validation failed for {library} - {query_name}: {e}")
-        return False
+
     except Exception as e:
-        print(f"Unexpected validation error for {library} - {query_name}: {e}")
+        print(f"Validation error for {library} - {query_name}: {e}")
         return False

@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, Optional
 import polars as pl
 from memory_profiler import memory_usage
 
-from .schemas import BenchmarkResultsSchema
+# Removed pandera dependency for simpler validation
 
 
 class BenchmarkFramework:
@@ -84,12 +84,23 @@ class BenchmarkFramework:
         """Save benchmark result to parquet file"""
         result_df = pl.DataFrame([result])
 
-        # Validate result schema (but don't block saving on failure)
-        try:
-            # Pandera automatically detects DataFrame backend (polars in this case)
-            BenchmarkResultsSchema.validate(result_df)
-        except Exception as e:
-            print(f"Schema validation warning (results still saved): {e}")
+        # Simple validation - just ensure we have the expected columns
+        expected_cols = {
+            "timestamp",
+            "library",
+            "query_name",
+            "dataset_size",
+            "execution_time_ms",
+            "peak_memory_mb",
+            "row_count",
+            "system_info",
+        }
+        df_cols = set(result_df.columns)
+        missing_cols = expected_cols - df_cols
+        if missing_cols:
+            print(
+                f"Warning: Missing result columns {missing_cols} (results still saved)"
+            )
 
         # Always save results regardless of validation
         if self.results_file.exists():
