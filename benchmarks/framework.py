@@ -1,8 +1,8 @@
 """Benchmark framework with timing and memory measurement"""
 
-import importlib.util
 import platform
 import psutil
+import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
@@ -26,9 +26,21 @@ class BenchmarkFramework:
         system = platform.system()
         machine = platform.machine()
 
+        # Check for GPU availability via nvidia-smi
         gpu_info = "No GPU"
-        if importlib.util.find_spec("cudf") is not None:
-            gpu_info = "cuDF available"
+        try:
+            result = subprocess.run(
+                ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader,nounits"],
+                check=True,
+                capture_output=True,
+                text=True,
+            )
+            gpu_names = result.stdout.strip().split("\n")
+            gpu_info = f"GPU: {gpu_names[0]}"
+            if len(gpu_names) > 1:
+                gpu_info += f" (+{len(gpu_names)-1} more)"
+        except (subprocess.CalledProcessError, FileNotFoundError):
+            gpu_info = "No GPU"
 
         return f"{system}-{machine}, {cpu_count}C/{memory_gb}GB, {gpu_info}"
 
