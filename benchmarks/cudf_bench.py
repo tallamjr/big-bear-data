@@ -61,12 +61,17 @@ class cuDFBenchmark:
         customer = tables["customer"]
 
         high_balance = customer[customer["c_acctbal"] > 5000]
-        result = (
-            high_balance.groupby("c_mktsegment")
-            .agg({"c_acctbal": "mean", "c_custkey": "count"})
-            .reset_index()
+
+        # Use separate aggregations to avoid cuDF column naming issues
+        avg_acctbal = (
+            high_balance.groupby("c_mktsegment")["c_acctbal"].mean().reset_index()
+        )
+        customer_count = (
+            high_balance.groupby("c_mktsegment")["c_custkey"].count().reset_index()
         )
 
+        # Merge the results
+        result = avg_acctbal.merge(customer_count, on="c_mktsegment")
         result.columns = ["c_mktsegment", "avg_acctbal", "customer_count"]
         result = result.sort_values("avg_acctbal", ascending=False)
 

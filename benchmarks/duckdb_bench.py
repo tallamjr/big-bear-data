@@ -92,15 +92,21 @@ class DuckDBBenchmark:
     def supplier_revenue(self):
         self._register_tables()
 
+        # Match Polars logic: group by supplier key first, then join
         result = self.conn.execute(
             """
             SELECT
                 s.s_name,
                 s.s_nationkey,
-                SUM(l.l_extendedprice * (1 - l.l_discount)) as total_revenue
-            FROM lineitem l
-            JOIN supplier s ON l.l_suppkey = s.s_suppkey
-            GROUP BY s.s_name, s.s_nationkey
+                revenue_agg.total_revenue
+            FROM (
+                SELECT
+                    l_suppkey,
+                    SUM(l_extendedprice * (1 - l_discount)) as total_revenue
+                FROM lineitem
+                GROUP BY l_suppkey
+            ) revenue_agg
+            JOIN supplier s ON revenue_agg.l_suppkey = s.s_suppkey
             ORDER BY total_revenue DESC
             LIMIT 100
         """
