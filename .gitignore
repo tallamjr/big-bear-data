@@ -1,4 +1,5 @@
 *.parquet
+!benchmarks/data/answers/*.parquet
 
 # General
 .DS_Store
@@ -43,6 +44,7 @@ downloads/
 eggs/
 .eggs/
 lib/
+libs/
 lib64/
 parts/
 sdist/
