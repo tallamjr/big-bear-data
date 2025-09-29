@@ -37,16 +37,21 @@
 * [Let's Get _GeoSpatial_](#lets-get-_geospatial)
 * [**Key Takeaways**](#key-takeaways)
   * [Query Optimisation Benefits](#query-optimisation-benefits)
-  * [GPU Engine vs Streaming Trade-offs](#gpu-engine-vs-streaming-trade-offs)
-* [Troubleshooting](#troubleshooting)
+  * [Enhanced Streaming Decision Guidance](#enhanced-streaming-decision-guidance)
+    * [Detailed Decision Matrix](#detailed-decision-matrix)
+    * [Streaming Mode Advantages & Use Cases](#streaming-mode-advantages--use-cases)
+    * [Hybrid Execution Patterns](#hybrid-execution-patterns)
+* [Enhanced Troubleshooting Guide](#enhanced-troubleshooting-guide)
   * [Common File System Issues](#common-file-system-issues)
   * [GPU-Specific Issues](#gpu-specific-issues)
     * [CUDA Runtime Errors](#cuda-runtime-errors)
-    * [Memory Issues](#memory-issues)
+    * [GPU Memory Management](#gpu-memory-management)
     * [GPU Operation Not Supported](#gpu-operation-not-supported)
     * [Package Installation Issues](#package-installation-issues)
     * [Circular Import Errors](#circular-import-errors)
     * [Performance Debugging](#performance-debugging)
+  * [Performance Monitoring and Optimization](#performance-monitoring-and-optimization)
+    * [Environment-Specific Debugging](#environment-specific-debugging)
 
 <!-- mtoc-end -->
 
@@ -1734,3 +1739,10 @@ Remember: GPU acceleration is most effective for CPU-bound compute-heavy
 operations (aggregations, joins, etc) rather than I/O-bound tasks. When in
 doubt, profile both GPU and CPU execution to determine the best approach for
 your specific workload.
+
+- [pylibcudf documentation](https://docs.rapids.ai/api/cudf/stable/pylibcudf/)
+- [Introducing UVM for larger than VRAM data on the Polars GPU engine](https://pola.rs/posts/uvm-larger-than-ram-gpu/)
+- [Polars GPU Execution](https://dataengineeringcentral.substack.com/p/polars-gpu-execution-70-speed-up?img=https%3A%2F%2Fsubstack-post-media.s3.amazonaws.com%2Fpublic%2Fimages%2F4cd60db4-7cdb-4ae8-a967-c010ac8f9c95_1480x520.png&open=false)
+- [Scaling DataFrames With Polars](https://www.nvidia.com/en-us/on-demand/session/gtcparis25-gp1085/)
+- [How to Work with Data Exceeding VRAM in the Polars GPU Engine](https://developer.nvidia.com/blog/how-to-work-with-data-exceeding-vram-in-the-polars-gpu-engine/)
+- [Introduction to Multi GPU Polars, powered by cuDF](https://github.com/rapidsai-community/showcase/blob/main/accelerated_data_processing_examples/multi_gpu_polars_demo.ipynb)
