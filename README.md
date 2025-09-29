@@ -1746,3 +1746,6 @@ your specific workload.
 - [Scaling DataFrames With Polars](https://www.nvidia.com/en-us/on-demand/session/gtcparis25-gp1085/)
 - [How to Work with Data Exceeding VRAM in the Polars GPU Engine](https://developer.nvidia.com/blog/how-to-work-with-data-exceeding-vram-in-the-polars-gpu-engine/)
 - [Introduction to Multi GPU Polars, powered by cuDF](https://github.com/rapidsai-community/showcase/blob/main/accelerated_data_processing_examples/multi_gpu_polars_demo.ipynb)
+- [Data Engineering Professional Certificate](https://www.coursera.org/professional-certificates/data-engineering)
+- [Designing Data-Intensive Applications, 2nd Edition](https://learning.oreilly.com/library/view/designing-data-intensive-applications/9781098119058/)
+- [Fundamentals of Data Engineering](https://learning.oreilly.com/library/view/fundamentals-of-data/9781098108298/)
