@@ -6,6 +6,7 @@ from benchmarks.data import (
     check_disk_space,
     tables_present,
     ensure_tables,
+    tpchgen_executable,
 )
 
 
@@ -95,3 +96,24 @@ def test_scale_dir_matches_harness_float_format(tmp_path):
     out = ensure_tables(tmp_path, tmp_path, 10, python_exe="py", runner=runner)
     assert out == tmp_path / "scale-10.0"
     assert called == []  # no generation since tables already present
+
+
+def test_tpchgen_executable_prefers_venv_bin(tmp_path):
+    """tpchgen_executable should prefer venv bin directory over PATH."""
+    bindir = tmp_path / "bin"
+    bindir.mkdir()
+    py = bindir / "python"
+    py.write_text("")
+    tool = bindir / "tpchgen-cli"
+    tool.write_text("")
+    assert tpchgen_executable(str(py)) == str(tool)
+
+
+def test_tpchgen_executable_raises_when_absent(tmp_path, monkeypatch):
+    """tpchgen_executable should raise when the tool is not found anywhere."""
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    py = tmp_path / "bin" / "python"
+    py.parent.mkdir(parents=True)
+    py.write_text("")
+    with pytest.raises(RuntimeError, match="tpchgen-cli not found"):
+        tpchgen_executable(str(py))

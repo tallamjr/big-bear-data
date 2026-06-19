@@ -40,6 +40,18 @@ def check_disk_space(
         )
 
 
+def tpchgen_executable(python_exe: str) -> str:
+    """Locate the tpchgen-cli binary next to the given venv python, falling
+    back to PATH lookup when it is not found there."""
+    candidate = Path(python_exe).resolve().parent / "tpchgen-cli"
+    if candidate.exists():
+        return str(candidate)
+    found = shutil.which("tpchgen-cli")
+    if found:
+        return found
+    raise RuntimeError(f"tpchgen-cli not found next to {python_exe} or on PATH")
+
+
 def tables_present(tables_dir: Path, scale_factor: int) -> bool:
     return (
         Path(tables_dir) / f"scale-{float(scale_factor)}" / "lineitem.parquet"
@@ -65,7 +77,7 @@ def ensure_tables(
     logger.info("Generating SF%s tables with tpchgen-cli", scale_factor)
     gen = runner(
         [
-            "tpchgen-cli",
+            tpchgen_executable(python_exe),
             "--output-dir",
             str(sf_dir),
             "--format",
