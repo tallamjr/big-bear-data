@@ -25,7 +25,9 @@ def check_disk_space(
 
 
 def tables_present(tables_dir: Path, scale_factor: int) -> bool:
-    return (Path(tables_dir) / f"scale-{scale_factor}" / "lineitem.parquet").exists()
+    return (
+        Path(tables_dir) / f"scale-{float(scale_factor)}" / "lineitem.parquet"
+    ).exists()
 
 
 def ensure_tables(
@@ -38,7 +40,7 @@ def ensure_tables(
 ) -> Path:
     """Generate TPC-H parquet tables for a scale factor if missing, with a disk guard."""
     tables_dir = Path(tables_dir)
-    sf_dir = tables_dir / f"scale-{scale_factor}"
+    sf_dir = tables_dir / f"scale-{float(scale_factor)}"
     if tables_present(tables_dir, scale_factor):
         logger.info("Tables for SF%s already present", scale_factor)
         return sf_dir

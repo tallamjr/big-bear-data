@@ -30,7 +30,7 @@ def test_check_disk_space_ok_when_high(tmp_path):
 
 
 def test_tables_present_detects_lineitem(tmp_path):
-    sf_dir = tmp_path / "scale-10"
+    sf_dir = tmp_path / "scale-10.0"
     sf_dir.mkdir(parents=True)
     assert tables_present(tmp_path, 10) is False
     (sf_dir / "lineitem.parquet").write_bytes(b"x")
@@ -38,7 +38,7 @@ def test_tables_present_detects_lineitem(tmp_path):
 
 
 def test_ensure_tables_skips_generation_when_present(tmp_path):
-    sf_dir = tmp_path / "scale-10"
+    sf_dir = tmp_path / "scale-10.0"
     sf_dir.mkdir(parents=True)
     (sf_dir / "lineitem.parquet").write_bytes(b"x")
     called = []
@@ -50,3 +50,27 @@ def test_ensure_tables_skips_generation_when_present(tmp_path):
     out = ensure_tables(tmp_path, tmp_path, 10, python_exe="py", runner=runner)
     assert out == sf_dir
     assert called == []  # no generation triggered
+
+
+def test_scale_dir_matches_harness_float_format(tmp_path):
+    """Harness resolves scale dir using f'scale-{float(scale_factor)}' (e.g. scale-10.0).
+    Test that tables_present and ensure_tables use the same float-formatted directory.
+    """
+    # Create the float-formatted dir that the harness expects
+    sf_dir = tmp_path / "scale-10.0"
+    sf_dir.mkdir(parents=True)
+    (sf_dir / "lineitem.parquet").write_bytes(b"x")
+
+    # tables_present must find tables in scale-10.0, not scale-10
+    assert tables_present(tmp_path, 10) is True
+
+    # Prove ensure_tables targets the float dir (returns scale-10.0, not scale-10)
+    called = []
+
+    def runner(*a, **k):
+        called.append(a)
+        return SimpleNamespace(returncode=0)
+
+    out = ensure_tables(tmp_path, tmp_path, 10, python_exe="py", runner=runner)
+    assert out == tmp_path / "scale-10.0"
+    assert called == []  # no generation since tables already present
