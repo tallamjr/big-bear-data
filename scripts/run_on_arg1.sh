@@ -13,7 +13,7 @@ rsync -a --delete "libs/polars-benchmark/" "${HOST}:${REMOTE_REPO}/libs/polars-b
 rsync -a "benchmarks/" "${HOST}:${REMOTE_REPO}/benchmarks/"
 
 echo "Installing harness runtime deps into remote venv"
-ssh "${HOST}" "cd ${REMOTE_REPO} && ${PY} -m pip install -q pydantic pydantic-settings linetimer"
+ssh "${HOST}" "cd ${REMOTE_REPO} && uv pip install pydantic pydantic-settings linetimer"
 
 echo "Running sweep on ${HOST} (this generates data and runs the matrix)"
 ssh "${HOST}" "cd ${REMOTE_REPO} && ${PY} -m benchmarks.run"

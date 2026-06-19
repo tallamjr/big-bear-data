@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import subprocess
 from pathlib import Path
 
@@ -33,8 +34,6 @@ def build_run_env(
 
 def build_command(engine: EngineConfig, python_exe: str = "python") -> list[str]:
     """Build the harness invocation command for an engine."""
-    if engine.use_cudf_pandas:
-        return [python_exe, "-m", "cudf.pandas", "-m", f"queries.{engine.module}"]
     return [python_exe, "-m", f"queries.{engine.module}"]
 
 
@@ -58,7 +57,7 @@ def run_one(
         iterations=iterations,
         timings_dir=timings_dir,
         tables_dir=Path(tables_dir),
-        base_env=dict(__import__("os").environ),
+        base_env=dict(os.environ),
     )
     cmd = build_command(engine, python_exe)
     logger.info("Running %s at SF%s", engine.label, scale_factor)

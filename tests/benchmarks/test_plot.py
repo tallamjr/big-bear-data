@@ -75,3 +75,4 @@ def test_plots_write_files(tmp_path):
     ]:
         out = tmp_path / name
         assert fn(out).exists()
+        assert out.with_suffix(".svg").exists()

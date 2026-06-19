@@ -11,7 +11,6 @@ class EngineConfig:
     module: str  # harness queries.<module>
     env: dict[str, str] = field(default_factory=dict)
     scales: tuple[int, ...] = (10, 100)
-    use_cudf_pandas: bool = False
     timeout_s: int = 7200
 
 
