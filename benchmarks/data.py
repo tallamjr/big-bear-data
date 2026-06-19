@@ -8,6 +8,21 @@ from pathlib import Path
 logger = logging.getLogger(__name__)
 
 
+def _nearest_existing(path: Path) -> Path:
+    """Resolve to the nearest existing ancestor directory.
+
+    When a path doesn't exist yet, traverse up to find the first existing parent.
+    This is used to check disk space on the filesystem where data will be written.
+    """
+    p = Path(path)
+    while not p.exists():
+        if p.parent == p:
+            # Reached the root and nothing exists; return root
+            break
+        p = p.parent
+    return p
+
+
 def required_free_gb(scale_factor: int) -> float:
     """Rough parquet + intermediate headroom needed to generate a scale factor."""
     return max(5.0, scale_factor * 0.5)
@@ -16,7 +31,8 @@ def required_free_gb(scale_factor: int) -> float:
 def check_disk_space(
     path: Path, scale_factor: int, free_bytes_fn=shutil.disk_usage
 ) -> None:
-    free_gb = free_bytes_fn(str(path)).free / (1024**3)
+    existing_path = _nearest_existing(Path(path))
+    free_gb = free_bytes_fn(str(existing_path)).free / (1024**3)
     needed = required_free_gb(scale_factor)
     if free_gb < needed:
         raise RuntimeError(

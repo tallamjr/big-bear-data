@@ -52,6 +52,27 @@ def test_ensure_tables_skips_generation_when_present(tmp_path):
     assert called == []  # no generation triggered
 
 
+def test_check_disk_space_handles_missing_dir(tmp_path):
+    """check_disk_space should work even when target dir doesn't exist yet.
+    It should stat the nearest existing ancestor, not the missing path itself.
+    """
+    missing = tmp_path / "does" / "not" / "exist" / "yet"
+    call_log = []
+
+    def fake_usage(p):
+        call_log.append(p)
+        # Verify the function resolved to an existing ancestor
+        import os
+
+        assert os.path.exists(p), f"disk check stat'd a non-existent path: {p}"
+        return SimpleNamespace(total=0, used=0, free=500 * 1024**3)
+
+    check_disk_space(missing, 100, free_bytes_fn=fake_usage)  # must not raise
+    assert len(call_log) == 1
+    # The call should have been to an existing ancestor, not the missing path
+    assert call_log[0] != str(missing)
+
+
 def test_scale_dir_matches_harness_float_format(tmp_path):
     """Harness resolves scale dir using f'scale-{float(scale_factor)}' (e.g. scale-10.0).
     Test that tables_present and ensure_tables use the same float-formatted directory.
