@@ -21,6 +21,7 @@ RESULTS_SCHEMA: dict[str, pl.DataType] = {
 
 
 def _failure_row(rec, hardware, timestamp) -> dict:
+    status = rec["status"] if rec["status"] != "ok" else "missing_timings"
     return {
         "engine_label": rec["engine_label"],
         "solution": None,
@@ -30,7 +31,7 @@ def _failure_row(rec, hardware, timestamp) -> dict:
         "iterations": None,
         "version": None,
         "io_type": None,
-        "status": rec["status"],
+        "status": status,
         "error": rec.get("error"),
         "hardware": hardware,
         "timestamp": timestamp,

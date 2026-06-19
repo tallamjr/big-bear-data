@@ -84,3 +84,19 @@ def test_write_results_roundtrip(tmp_path):
     out = tmp_path / "results.parquet"
     write_results(df, out)
     assert pl.read_parquet(out).height == 1
+
+
+def test_ok_status_without_csv_is_marked_missing_timings():
+    records = [
+        {
+            "engine_label": "polars-gpu-managed",
+            "scale_factor": 100,
+            "status": "ok",
+            "error": None,
+            "timings_csv": None,
+        }
+    ]
+    df = aggregate_timings(records, hardware="h", timestamp="t")
+    assert df.height == 1
+    assert df["status"][0] == "missing_timings"
+    assert df["duration_s"][0] is None
