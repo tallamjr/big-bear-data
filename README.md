@@ -945,6 +945,46 @@ Reproduce the full sweep with:
 .venv/bin/python -m benchmarks.run --plot-only
 ```
 
+#### Engine Scorecard
+
+Total wall-clock for all 22 TPC-H queries (median of 3 iterations), in seconds:
+
+| Engine | SF10 | SF100 | Where it wins |
+|--------|-----:|------:|---------------|
+| **DuckDB** | 3.0 | 23.8 | Overall champion at both scales on join and aggregation heavy SQL analytics |
+| **Polars GPU (cuda-async)** | 3.4 | 42.8 | ~2x over CPU in-memory at SF10; compute-dense work that fits VRAM |
+| **Polars CPU (streaming)** | 3.6 | 38.1 | Best CPU speed/memory trade-off; beats the GPU at SF100 |
+| **Polars CPU (in-memory)** | 6.9 | 75.4 | Simplest path; small data and prototyping |
+| **Polars GPU (managed / UVM)** | 17.4 | 197.5 | Only when a single query genuinely exceeds VRAM |
+
+At SF10 the top three are within ~0.6s of each other; the GPU delivers a real 2x
+over CPU in-memory. At SF100 DuckDB pulls clearly ahead, and the GPU edge narrows
+because more data has to cross PCIe, so it falls behind CPU streaming.
+
+#### When to Use Which
+
+The deciding factor is the compute-to-I/O ratio of your workload. TPC-H at scale
+is I/O and join bound, which favours DuckDB's optimiser and Polars' streaming;
+GPUs win when arithmetic per byte is high and the data is, or stays, on the device.
+
+- **DuckDB**: reach for it first on SQL-shaped analytics with multi-table joins and
+  aggregations. Its mature cost-based optimiser (especially join reordering) and
+  morsel-driven vectorised execution are hard to beat on this query shape.
+- **Polars streaming**: larger-than-RAM ETL on a single machine (bounded-memory
+  chunked execution), and expression-heavy pipelines (feature engineering, window
+  functions, list/struct operations) where the dataframe API is far more
+  ergonomic than SQL and interops zero-copy with the Python/ML stack.
+- **Polars GPU (cuda-async)**: compute-dense queries that fit VRAM (big group-bys,
+  string processing, heavy arithmetic) and GPU-resident pipelines where the data
+  is already on the card, so you avoid the host-to-device transfer that handicaps
+  the GPU at SF100. Faster paths such as GPU Direct Storage or multi-GPU would
+  improve the large-scale numbers materially.
+- **Polars CPU (in-memory)**: the simplest option for small data, prototyping, and
+  when neither streaming nor GPU setup is worth the trouble.
+- **Polars GPU (managed / UVM)**: an escape hatch, not a default. Use it only when
+  a single query's working set exceeds VRAM and the alternative is failing
+  outright; when the data fits, plain cuda-async is far faster.
+
 ### Debugging and Monitoring GPU Usage
 
 To understand whether your queries are actually using the GPU, Polars provides several debugging tools:
