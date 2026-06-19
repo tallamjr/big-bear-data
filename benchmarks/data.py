@@ -42,8 +42,14 @@ def check_disk_space(
 
 def tpchgen_executable(python_exe: str) -> str:
     """Locate the tpchgen-cli binary next to the given venv python, falling
-    back to PATH lookup when it is not found there."""
-    candidate = Path(python_exe).resolve().parent / "tpchgen-cli"
+    back to PATH lookup when it is not found there.
+
+    The python_exe is typically a symlink (e.g. .venv/bin/python -> the
+    interpreter); resolving the file would follow it away from the venv bin
+    directory where tpchgen-cli lives, so only the parent directory is
+    resolved, not the symlinked file itself.
+    """
+    candidate = Path(python_exe).parent.resolve() / "tpchgen-cli"
     if candidate.exists():
         return str(candidate)
     found = shutil.which("tpchgen-cli")

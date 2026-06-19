@@ -109,6 +109,25 @@ def test_tpchgen_executable_prefers_venv_bin(tmp_path):
     assert tpchgen_executable(str(py)) == str(tool)
 
 
+def test_tpchgen_executable_does_not_follow_python_symlink(tmp_path):
+    """A venv python is a symlink to an interpreter elsewhere; the locator must
+    look in the venv bin (where tpchgen-cli lives), not the symlink target dir."""
+    real_bindir = tmp_path / "real" / "bin"
+    real_bindir.mkdir(parents=True)
+    real_python = real_bindir / "python3.10"
+    real_python.write_text("")
+
+    venv_bindir = tmp_path / "venv" / "bin"
+    venv_bindir.mkdir(parents=True)
+    venv_python = venv_bindir / "python"
+    venv_python.symlink_to(real_python)
+    tool = venv_bindir / "tpchgen-cli"
+    tool.write_text("")
+
+    # The symlink target dir has no tpchgen-cli; the venv bin does.
+    assert tpchgen_executable(str(venv_python)) == str(tool)
+
+
 def test_tpchgen_executable_raises_when_absent(tmp_path, monkeypatch):
     """tpchgen_executable should raise when the tool is not found anywhere."""
     monkeypatch.setattr("shutil.which", lambda name: None)
