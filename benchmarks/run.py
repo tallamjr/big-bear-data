@@ -14,7 +14,6 @@ from benchmarks.sweep import run_sweep
 from benchmarks.aggregate import aggregate_timings, write_results
 from benchmarks import plot as plotmod
 
-logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 logger = logging.getLogger("benchmarks.run")
 
 
@@ -41,15 +40,19 @@ def _render_all(results_path: Path, plots_dir: Path) -> None:
     plotmod.set_tahoma_style()
     plots_dir.mkdir(parents=True, exist_ok=True)
     baseline = "polars-cpu-inmemory"
-    for sf in sorted(df["scale_factor"].unique().to_list()):
+    scales_present = sorted(df["scale_factor"].unique().to_list())
+    for sf in scales_present:
         plotmod.plot_per_query_bars(df, sf, plots_dir / f"per_query_sf{sf}.png")
         plotmod.plot_speedup(df, baseline, sf, plots_dir / f"speedup_sf{sf}.png")
     plotmod.plot_scaling_curve(df, plots_dir / "scaling_curve.png")
-    if 100 in df["scale_factor"].to_list():
+    if 100 in scales_present:
         plotmod.plot_uvm_panel(df, 100, plots_dir / "uvm_panel_sf100.png")
 
 
 def main(argv=None) -> int:
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s"
+    )
     ns = parse_args(argv)
     plots_dir = Path(ns.plots_dir)
     if ns.plot_only:
