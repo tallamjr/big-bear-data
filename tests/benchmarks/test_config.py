@@ -18,8 +18,6 @@ def test_expected_engines_present():
         "polars-gpu-cuda-async",
         "polars-gpu-managed",
         "duckdb",
-        "pandas",
-        "cudf",
     }
 
 
@@ -28,17 +26,6 @@ def test_gpu_engines_carry_rmm_resource():
     assert gpu["polars-gpu-cuda-async"].env["RUN_USE_RMM_MR"] == "cuda-async"
     assert gpu["polars-gpu-managed"].env["RUN_USE_RMM_MR"] == "managed"
     assert all(e.env["RUN_POLARS_GPU"] == "true" for e in gpu.values())
-
-
-def test_cudf_uses_pandas_module_via_accelerator():
-    cudf = next(e for e in ENGINE_MATRIX if e.label == "cudf")
-    assert cudf.module == "pandas"
-    assert cudf.use_cudf_pandas is True
-
-
-def test_pandas_runs_only_at_sf10():
-    pandas = next(e for e in ENGINE_MATRIX if e.label == "pandas")
-    assert pandas.scales == (10,)
 
 
 def test_scales_are_subset_of_sweep():

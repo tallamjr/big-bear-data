@@ -35,6 +35,4 @@ ENGINE_MATRIX: tuple[EngineConfig, ...] = (
         (10, 100),
     ),
     EngineConfig("duckdb", "duckdb", {}, (10, 100)),
-    EngineConfig("pandas", "pandas", {}, (10,)),
-    EngineConfig("cudf", "pandas", {}, (10, 100), use_cudf_pandas=True),
 )

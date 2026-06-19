@@ -71,16 +71,6 @@ def test_command_default():
     ]
 
 
-def test_command_cudf_uses_accelerator():
-    assert build_command(_engine("cudf"), "/v/python") == [
-        "/v/python",
-        "-m",
-        "cudf.pandas",
-        "-m",
-        "queries.pandas",
-    ]
-
-
 def test_base_env_is_not_mutated():
     base = {"HOME": "/home/tarek"}
     build_run_env(
