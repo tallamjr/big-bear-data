@@ -642,3 +642,7 @@ dkms.conf
 *.txz
 
 .claude
+
+# benchmark intermediate timing outputs (regenerated per run)
+benchmarks/_timings/
+benchmarks/_timings*/

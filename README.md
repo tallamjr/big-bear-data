@@ -858,64 +858,92 @@ Remember that the GPU engine is in Open Beta and undergoing rapid development.
 
 ### Performance Results: CPU vs GPU
 
-```
-┌───────────────────────────────────────────────────────────────────┐
-│                  Performance Benchmark Results                   │
-├───────────────────────────────────────────────────────────────────┤
-│                                                                   │
-│  Dataset: 1.5 billion NYC taxi rows (50GB compressed)            │
-│  Hardware: NVIDIA RTX 4090 (24GB VRAM)                           │
-│                                                                   │
-│  CPU (Streaming):  ████████████████████████████ 2m 8.376s       │
-│  GPU (Optimized):  ██████████████ 1m 7.322s (2x faster!)        │
-│                                                                   │
-│  Performance by Operation Type:                                   │
-│  ┌─────────────────────┬──────────────────────────────────┐      │
-│  │ GroupBy Aggregation │ █████████████████ 5-15x speedup │      │
-│  │ Large Joins         │ ████████████ 3-10x speedup      │      │
-│  │ Filter & Selection  │ ████████ 2-5x speedup           │      │
-│  │ I/O Operations      │ ███ 1-2x speedup                │      │
-│  └─────────────────────┴──────────────────────────────────┘      │
-│                                                                   │
-└───────────────────────────────────────────────────────────────────┘
-```
+The NYC taxi queries above are the narrative; the rigorous numbers come from the
+official PDS/TPC-H benchmark (vendored in `libs/polars-benchmark`) run end to end
+on a real GPU. All 22 standard TPC-H queries execute on every engine at scale
+factors 10 and 100, three timed iterations each (median reported), driven by the
+thin orchestrator in `benchmarks/`.
 
-Running our comprehensive NYC taxi analysis on an **NVIDIA RTX 4090 with 24GB
-VRAM**, we see substantial performance improvements... _drum roll please_
+- **GPU**: NVIDIA GeForce RTX 4090, 24GB VRAM
+- **CPU**: 48 cores, 125GB RAM
+- **Software**: Polars 1.31, cudf-polars 25.08, DuckDB 1.3, tpchgen 2.0
+
+The monetary `Decimal` columns produced by `tpchgen-cli` are cast to `Float64`
+during data preparation, because cudf-polars does not support the `Decimal` dtype
+on GPU. Every engine reads the identical float data, so the comparison stays fair.
 
 ![](./.assets/session.gif)
 
 #### Benchmark Results
 
-| Engine | Execution Time | Speedup |
-|--------|---------------|---------|
-| **CPU (streaming)** | 2m 8.376s | baseline |
-| **GPU** | 1m 7.322s | **2x faster** |
+Total wall-clock to run all 22 TPC-H queries (median of 3 iterations), in seconds:
 
-```console
-# GPU Performance
-real    1m7.322s
-user    5m16.966s
-sys     1m18.575s
-```
+| Engine | SF10 | SF100 |
+|--------|-----:|------:|
+| DuckDB | 3.0 | 23.8 |
+| Polars GPU (cuda-async) | 3.4 | 42.8 |
+| Polars CPU (streaming) | 3.6 | 38.1 |
+| Polars CPU (in-memory) | 6.9 | 75.4 |
+| Polars GPU (managed / UVM) | 17.4 | 197.5 |
+
+![Per-query runtime at SF10](./benchmarks/plots/per_query_sf10.png)
+
+![Total runtime across scale factors](./benchmarks/plots/scaling_curve.png)
 
 #### Performance Analysis
 
-This **2x speedup** on 1.5 billion rows demonstrates GPU acceleration benefits, though this varies significantly by query type:
+The headline is honest rather than triumphant: the fastest engine depends on the
+workload, and the GPU is a strong but not dominant option for these analytical
+queries.
 
-| Operation Type | Typical GPU Speedup | Best Use Case |
-|----------------|-------------------|---------------|
-| **Grouped Aggregations** | 5-15x | EXCELLENT |
-| **Joins** | 3-10x | EXCELLENT |
-| **Filters & Selections** | 2-5x | GOOD |
-| **String Processing** | 2-5x | GOOD |
-| **I/O Operations** | 1-2x | MINIMAL benefit |
+- **GPU acceleration is real at SF10.** The Polars GPU engine (cuda-async) runs
+  the full suite in 3.4s versus 6.9s for the Polars CPU in-memory engine, roughly
+  a 2x speedup, and lands within a whisker of DuckDB.
+- **DuckDB is the overall champion** on TPC-H at both scales. Its query optimiser
+  and vectorised execution are hard to beat on join and aggregation heavy
+  analytics; at SF100 it finishes in 23.8s.
+- **Polars streaming is the best CPU trade-off.** It beats the in-memory engine at
+  both scales and edges out the GPU at SF100 (38.1s vs 42.8s) while using a
+  fraction of the memory.
+- **The GPU advantage narrows at SF100.** Larger inputs mean more host-to-device
+  transfer over PCIe, so the GPU (42.8s) sits between streaming and in-memory
+  rather than out in front.
 
-#### Memory and Dataset Considerations
+![Speedup over the CPU in-memory baseline at SF10](./benchmarks/plots/speedup_sf10.png)
 
-- **Optimal Dataset Size**: 50-100 GiB raw data fits well on 80GB VRAM GPUs
-- **Memory Explosion Risk**: Complex aggregations can rapidly consume VRAM
-- **Streaming Alternative**: For larger datasets, CPU streaming often more reliable
+#### Memory and Dataset Considerations: the UVM result
+
+The most instructive finding concerns Unified Virtual Memory (the RMM `managed`
+memory resource, the subject of the
+[Polars larger-than-RAM GPU post](https://pola.rs/posts/uvm-larger-than-ram-gpu/)).
+UVM lets the GPU spill past its 24GB of VRAM into host RAM, so you can process
+working sets that do not fit on the card.
+
+![cuda-async vs managed (UVM) at SF100](./benchmarks/plots/uvm_panel_sf100.png)
+
+In this benchmark UVM is consistently the slowest configuration: 17.4s at SF10 and
+197.5s at SF100, about 5x slower than cuda-async at SF100. The reason is that
+TPC-H queries project only the columns they need, so even at SF100 each query's
+working set stays under 24GB and fits in VRAM. The cuda-async engine therefore
+completes every query without spilling, while the managed engine pays the
+page-migration cost of UVM for no benefit.
+
+The practical lesson: UVM is an escape hatch, not a free lunch. Reach for
+`managed` memory only when a query genuinely exceeds VRAM and the alternative is
+failing outright; when the working set fits, plain `cuda-async` is far faster. To
+actually exercise the larger-than-VRAM path on a 24GB card you need queries that
+materialise more than 24GB at once (wider projections, or scale factors well
+beyond 100).
+
+Reproduce the full sweep with:
+
+```bash
+# on the GPU host: generate data, run all engines at SF10 and SF100
+.venv/bin/python -m benchmarks.run --scales 10,100 --iterations 3
+
+# render the Tahoma-styled plots locally from the results
+.venv/bin/python -m benchmarks.run --plot-only
+```
 
 ### Debugging and Monitoring GPU Usage
 
