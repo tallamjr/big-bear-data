@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -64,7 +65,9 @@ def cast_decimal_columns_to_float(sf_dir: Path) -> list[str]:
     """Cast any Decimal columns in every parquet table under sf_dir to Float64,
     rewriting the file in place. Returns the sorted list of table file names that
     were modified. Idempotent: tables with no Decimal columns are left untouched.
-    Needed because cudf-polars (GPU) does not support the Decimal dtype."""
+    Needed because cudf-polars (GPU) does not support the Decimal dtype.
+    Uses streaming sink_parquet so it stays memory-bounded on very large tables
+    (e.g. SF100 lineitem)."""
     modified = []
     for pq in sorted(Path(sf_dir).glob("*.parquet")):
         lf = pl.scan_parquet(pq)
@@ -74,10 +77,11 @@ def cast_decimal_columns_to_float(sf_dir: Path) -> list[str]:
         ]
         if not decimal_cols:
             continue
-        df = lf.with_columns(
+        tmp = pq.with_suffix(".parquet.casting.tmp")
+        lf.with_columns(
             [pl.col(c).cast(pl.Float64) for c in decimal_cols]
-        ).collect()
-        df.write_parquet(pq)
+        ).sink_parquet(tmp)
+        os.replace(tmp, pq)
         modified.append(pq.name)
     return modified
 
