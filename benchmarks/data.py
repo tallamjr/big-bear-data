@@ -56,7 +56,7 @@ def ensure_tables(
             str(scale_factor),
         ],
         cwd=str(harness_dir),
-        check=True,
+        check=False,
     )
     if getattr(gen, "returncode", 0) != 0:
         raise RuntimeError(f"tpchgen-cli failed for SF{scale_factor}")
