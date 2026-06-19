@@ -136,3 +136,34 @@ def test_tpchgen_executable_raises_when_absent(tmp_path, monkeypatch):
     py.write_text("")
     with pytest.raises(RuntimeError, match="tpchgen-cli not found"):
         tpchgen_executable(str(py))
+
+
+def test_cast_decimal_columns_to_float_rewrites_decimals(tmp_path):
+    import polars as pl
+    from benchmarks.data import cast_decimal_columns_to_float
+
+    sf = tmp_path / "scale-1.0"
+    sf.mkdir()
+    # a table with a Decimal column and a non-decimal column
+    df = pl.DataFrame({"price": ["1.50", "2.25"], "qty": [3, 4]}).with_columns(
+        pl.col("price").cast(pl.Decimal(precision=15, scale=2))
+    )
+    df.write_parquet(sf / "lineitem.parquet")
+    # a table with no decimals must be left untouched
+    pl.DataFrame({"r": [1, 2]}).write_parquet(sf / "region.parquet")
+
+    modified = cast_decimal_columns_to_float(sf)
+    assert modified == ["lineitem.parquet"]
+    out = pl.read_parquet(sf / "lineitem.parquet")
+    assert out.schema["price"] == pl.Float64
+    assert out["price"].to_list() == [1.5, 2.25]
+
+
+def test_cast_decimal_columns_is_idempotent(tmp_path):
+    import polars as pl
+    from benchmarks.data import cast_decimal_columns_to_float
+
+    sf = tmp_path / "scale-1.0"
+    sf.mkdir()
+    pl.DataFrame({"price": [1.5, 2.25]}).write_parquet(sf / "lineitem.parquet")
+    assert cast_decimal_columns_to_float(sf) == []  # nothing to change

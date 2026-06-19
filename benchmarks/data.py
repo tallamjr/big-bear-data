@@ -5,6 +5,8 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import polars as pl
+
 logger = logging.getLogger(__name__)
 
 
@@ -58,6 +60,28 @@ def tpchgen_executable(python_exe: str) -> str:
     raise RuntimeError(f"tpchgen-cli not found next to {python_exe} or on PATH")
 
 
+def cast_decimal_columns_to_float(sf_dir: Path) -> list[str]:
+    """Cast any Decimal columns in every parquet table under sf_dir to Float64,
+    rewriting the file in place. Returns the sorted list of table file names that
+    were modified. Idempotent: tables with no Decimal columns are left untouched.
+    Needed because cudf-polars (GPU) does not support the Decimal dtype."""
+    modified = []
+    for pq in sorted(Path(sf_dir).glob("*.parquet")):
+        lf = pl.scan_parquet(pq)
+        schema = lf.collect_schema()
+        decimal_cols = [
+            name for name, dt in schema.items() if isinstance(dt, pl.Decimal)
+        ]
+        if not decimal_cols:
+            continue
+        df = lf.with_columns(
+            [pl.col(c).cast(pl.Float64) for c in decimal_cols]
+        ).collect()
+        df.write_parquet(pq)
+        modified.append(pq.name)
+    return modified
+
+
 def tables_present(tables_dir: Path, scale_factor: int) -> bool:
     return (
         Path(tables_dir) / f"scale-{float(scale_factor)}" / "lineitem.parquet"
@@ -96,4 +120,7 @@ def ensure_tables(
     )
     if getattr(gen, "returncode", 0) != 0:
         raise RuntimeError(f"tpchgen-cli failed for SF{scale_factor}")
+    modified = cast_decimal_columns_to_float(sf_dir)
+    if modified:
+        logger.info("Cast Decimal columns to Float64 in %s", ", ".join(modified))
     return sf_dir
