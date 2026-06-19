@@ -17,6 +17,16 @@ from benchmarks import plot as plotmod
 logger = logging.getLogger("benchmarks.run")
 
 
+def resolve_paths(harness_dir, tables_dir, timings_root):
+    """Resolve orchestration paths to absolute so the harness subprocess
+    (which runs in a different cwd) reads/writes the same locations."""
+    return (
+        Path(harness_dir).resolve(),
+        Path(tables_dir).resolve(),
+        Path(timings_root).resolve(),
+    )
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Run the GPU Polars benchmark sweep")
     p.add_argument(
@@ -60,8 +70,9 @@ def main(argv=None) -> int:
         logger.info("Plots written to %s", plots_dir)
         return 0
 
-    harness_dir = Path(ns.harness_dir)
-    tables_dir = Path(ns.tables_dir)
+    harness_dir, tables_dir, timings_root = resolve_paths(
+        ns.harness_dir, ns.tables_dir, "benchmarks/_timings"
+    )
     for sf in ns.scales:
         ensure_tables(harness_dir, tables_dir, sf, python_exe=ns.python_exe)
     records = run_sweep(
@@ -69,7 +80,7 @@ def main(argv=None) -> int:
         ns.scales,
         harness_dir=harness_dir,
         tables_dir=tables_dir,
-        timings_root=Path("benchmarks/_timings"),
+        timings_root=timings_root,
         python_exe=ns.python_exe,
         iterations=ns.iterations,
     )
