@@ -1,0 +1,52 @@
+from types import SimpleNamespace
+import pytest
+
+from benchmarks.data import (
+    required_free_gb,
+    check_disk_space,
+    tables_present,
+    ensure_tables,
+)
+
+
+def test_required_free_scales_with_sf():
+    assert required_free_gb(100) >= required_free_gb(10)
+    assert required_free_gb(1) >= 5
+
+
+def test_check_disk_space_raises_when_low(tmp_path):
+    def fake_usage(p):
+        return SimpleNamespace(total=0, used=0, free=1 * 1024**3)  # 1 GB free
+
+    with pytest.raises(RuntimeError, match="insufficient disk"):
+        check_disk_space(tmp_path, 100, free_bytes_fn=fake_usage)
+
+
+def test_check_disk_space_ok_when_high(tmp_path):
+    def fake_usage(p):
+        return SimpleNamespace(total=0, used=0, free=500 * 1024**3)
+
+    check_disk_space(tmp_path, 100, free_bytes_fn=fake_usage)  # no raise
+
+
+def test_tables_present_detects_lineitem(tmp_path):
+    sf_dir = tmp_path / "scale-10"
+    sf_dir.mkdir(parents=True)
+    assert tables_present(tmp_path, 10) is False
+    (sf_dir / "lineitem.parquet").write_bytes(b"x")
+    assert tables_present(tmp_path, 10) is True
+
+
+def test_ensure_tables_skips_generation_when_present(tmp_path):
+    sf_dir = tmp_path / "scale-10"
+    sf_dir.mkdir(parents=True)
+    (sf_dir / "lineitem.parquet").write_bytes(b"x")
+    called = []
+
+    def runner(*a, **k):
+        called.append(a)
+        return SimpleNamespace(returncode=0)
+
+    out = ensure_tables(tmp_path, tmp_path, 10, python_exe="py", runner=runner)
+    assert out == sf_dir
+    assert called == []  # no generation triggered
