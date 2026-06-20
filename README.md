@@ -1,6 +1,6 @@
 # A Big Bear Takes on the Big Apple
 
-*Big data on one machine: querying 1.5 billion NYC taxi rows on a laptop with Polars, pushing the same work onto a GPU, then benchmarking CPU vs GPU vs DuckDB honestly with TPC-H.*
+*Big data on one machine: querying 1.5 billion NYC taxi rows on a laptop with Polars, pushing the same work onto a GPU, then benchmarking CPU vs GPU vs DuckDB with TPC-H.*
 
 <!-- mtoc-start -->
 
@@ -79,14 +79,14 @@ This repository is a hands-on tour of modern "big data on a single machine": how
 
 - Why query optimisation matters, and how Polars brings database-grade planning to a DataFrame API, shown on a 50GB, 1.5-billion-row NYC taxi dataset processed on a 32GB laptop.
 - How GPU acceleration fits in through Polars' GPU engine, and where it actually helps.
-- What a rigorous, honest benchmark says: the official TPC-H suite run on an RTX 4090, comparing CPU, GPU, UVM, and DuckDB, with the real numbers and a clear "when to use which".
+- What the benchmark says: the official TPC-H suite run on an RTX 4090, comparing CPU, GPU, UVM, and DuckDB, with the real numbers and a clear "when to use which".
 
 **The journey, in five parts**
 
 1. The problem ([Overview](#overview)): the memory wall, and why query planning is the way out.
 2. Polars on a laptop ([queries 1 to 5](#1-count-rows-efficiently-full-dataset-scan)): five queries over 1.5 billion taxi rows, with the optimiser explained and its query plans laid bare.
 3. Adding a GPU ([Here Come the Hotstepper](#here-come-the-hotstepper-gpu-acceleration)): the Polars GPU engine, its configuration, and its limits.
-4. The benchmark ([Performance Results](#performance-results-cpu-vs-gpu)): real TPC-H numbers across five engines, the honest findings, and an engine scorecard.
+4. The benchmark ([Performance Results](#performance-results-cpu-vs-gpu)): real TPC-H numbers across five engines, the findings, and an engine scorecard.
 5. Choosing an engine ([Key Takeaways](#key-takeaways)), backed by a [troubleshooting](#enhanced-troubleshooting-guide) reference.
 
 **Two ways to read this**
@@ -885,7 +885,7 @@ Remember that the GPU engine is in Open Beta and undergoing rapid development.
 
 ### Performance Results: CPU vs GPU
 
-The NYC taxi queries above are the narrative; the rigorous numbers come from the
+The NYC taxi queries above are the narrative; the numbers come from the
 official PDS/TPC-H benchmark (vendored in `libs/polars-benchmark`) run end to end
 on a real GPU. All 22 standard TPC-H queries execute on every engine at scale
 factors 10 and 100, three timed iterations each (median reported), driven by the
@@ -921,9 +921,8 @@ At SF10 the top three are within ~0.6s of each other and the GPU delivers a real
 
 #### Performance Analysis
 
-The headline is honest rather than triumphant: the fastest engine depends on the
-workload, and the GPU is a strong but not dominant option for these analytical
-queries.
+The fastest engine depends on the workload, and the GPU is a strong but not
+dominant option for these analytical queries.
 
 - **GPU acceleration is real at SF10.** The Polars GPU engine (cuda-async) runs
   the full suite in 3.4s versus 6.9s for the Polars CPU in-memory engine, roughly
@@ -1124,11 +1123,55 @@ The Polars approach combines the best of both worlds: sophisticated query optimi
 
 ## Let's Get _GeoSpatial_
 
-<!-- NOTE: This will come when is closed. As of July 2025 it is actively being worked on! -->
-<!---->
-<!-- ```bash -->
-<!-- brew install h3 -->
-<!-- ``` -->
+The taxi data is full of coordinates, so a natural next question is where you reach for proper geometry types and spatial operations (areas, centroids, intersections, spatial joins) on top of Polars. Here is the status as of June 2026.
+
+**Bottom line: native GeoPolars is not usable yet.** The long-standing upstream blocker is finally gone and foundational plumbing landed in December 2025, but there is still no working geospatial DataFrame API and the Python bindings are stale. You cannot `pip install geopolars` and do geospatial work on current Polars today.
+
+**What changed upstream (the good news).** The thing that blocked GeoPolars for years is resolved. Polars PR [#25322 "Add Extension types"](https://github.com/pola-rs/polars/pull/25322) merged on 2025-11-20, closing the multi-year tracking issue [#9112 "Support for Arrow Extension types"](https://github.com/pola-rs/polars/issues/9112). The `dtype-extension` feature now ships in released Polars (Rust 0.54.4, Python 1.41.2). GeoArrow, the memory model GeoPolars is built on, sits on Arrow extension types, so this was the hard prerequisite.
+
+**The project moved.** GeoPolars was transferred into the official Polars org and now lives at [pola-rs/geopolars](https://github.com/pola-rs/geopolars); the old `geopolars/geopolars` URL redirects to the same repository.
+
+**What actually exists today is type plumbing, not operations.** After roughly sixteen months dormant, a burst of work landed on 2025-12-10 (PRs #247, #255, #257, #258) restructuring the project into two Rust crates:
+
+- `geopolars-arrow`: type and field conversions between `geoarrow-rs` and `polars-arrow`.
+- `geopolars-extension`: registers the eleven GeoArrow types (Point, LineString, ..., WKB, WKT) into Polars' new extension-type registry, with round-trip FFI of the schema.
+
+This teaches Polars that "a geometry column is this extension type" and round-trips the schema through Arrow's C FFI. There is no spatial logic (area, centroid, intersects) wired into a DataFrame yet, and the code still carries early-scaffolding markers (a `// TODO` on type-name matching, an `.expect(...)` panic path).
+
+**Two caveats worth knowing.**
+
+1. The Rust core pins an unreleased Polars git commit (a December 2025 `main` revision built with `features = ["dtype-extension"]`), not a crates.io release. Even the Rust side targets bleeding-edge Polars, not 0.54.4.
+2. The Python bindings (`py-geopolars`) are stale and broken: excluded from the workspace, still declaring `polars = "0.35"` and `pyo3 = "0.20"`, and depending on a crate path that no longer exists. The published PyPI package (`0.1.0-alpha.4`) is the old 2024 prototype.
+
+The aspirational API gives the flavour of where it is headed, but does not run today:
+
+```python
+# Design intent (GeoPandas-like), NOT currently runnable
+import pyarrow as pa
+import geopolars as gpl
+
+table = pa.ipc.open_file("cities.arrow").read_all()
+df = gpl.from_arrow(table)                          # GeoDataFrame
+centroids = df.get_column("geometry").centroid()    # spatial op
+```
+
+The only thing that genuinely works right now is a Rust type round-trip test (a GeoArrow type converted to a Polars field and back).
+
+**Roadmap and the signal to watch.** The maintainer's stated order (tracking issue [geopolars#245](https://github.com/pola-rs/geopolars/issues/245), still open) is: (1) Arrow data conversion, in progress now; (2) basic spatial ops to prove the architecture; (3) refresh the Python bindings and docs; (4) GeoPandas, Shapely, and GDAL interop. It is on step 1. The moment to re-evaluate is when the first spatial-operation PRs appear against the `geopolars-extension` crate.
+
+| Question | Answer (June 2026) |
+|----------|--------------------|
+| Is Polars itself unblocked for geo? | Yes, since Nov 2025 (extension types) |
+| Does GeoPolars build against a released Polars? | No, it pins an unreleased Polars git commit |
+| Can you do geospatial ops with it today? | No, only type and schema bridging exists |
+| Is the Python package usable? | No, bindings are stale (Polars 0.35) and reference a deleted crate path |
+| Is it actively moving? | Yes, but very early |
+
+**What you can do today.** Until GeoPolars matures, geospatial work on Polars is still very possible, just not through a native geometry type:
+
+- **H3 hexagonal indexing** via [`polars-h3`](https://github.com/Filimoa/polars-h3) (already a dependency in this project): index points into H3 cells as ordinary Polars expressions and aggregate by cell, which is ideal for binning taxi pickups by area.
+- **Plain coordinate maths in expressions**, exactly as the NYC bounding-box filter earlier in this README does: latitude and longitude comparisons, Haversine distances, and derived speeds all compose as normal Polars expressions.
+- **Hand true geometry operations off to a mature engine** and bring the results back to Polars: GeoPandas and Shapely for in-memory work, or DuckDB's `spatial` extension for larger-than-memory spatial SQL.
 
 ## **Key Takeaways**
 
