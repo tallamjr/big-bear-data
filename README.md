@@ -1,7 +1,10 @@
 # A Big Bear Takes on the Big Apple
 
+*Big data on one machine: querying 1.5 billion NYC taxi rows on a laptop with Polars, pushing the same work onto a GPU, then benchmarking CPU vs GPU vs DuckDB honestly with TPC-H.*
+
 <!-- mtoc-start -->
 
+* [Start Here](#start-here)
 * [Overview](#overview)
   * [The DataFrame Evolution: From Accessibility to Performance](#the-dataframe-evolution-from-accessibility-to-performance)
   * [The Memory Wall Problem](#the-memory-wall-problem)
@@ -28,7 +31,8 @@
   * [Performance Results: CPU vs GPU](#performance-results-cpu-vs-gpu)
     * [Benchmark Results](#benchmark-results)
     * [Performance Analysis](#performance-analysis)
-    * [Memory and Dataset Considerations](#memory-and-dataset-considerations)
+    * [Memory and Dataset Considerations: the UVM result](#memory-and-dataset-considerations-the-uvm-result)
+    * [When to Use Which](#when-to-use-which)
   * [Debugging and Monitoring GPU Usage](#debugging-and-monitoring-gpu-usage)
   * [Best Practices for GPU Acceleration](#best-practices-for-gpu-acceleration)
   * [Distributed Systems: Future Considerations](#distributed-systems-future-considerations)
@@ -66,6 +70,29 @@
 > will come later. In the meantime, bear with me (_whey_, pun intended!) as
 > this is very rough around the edges and will be updtated properly another
 > time**
+
+## Start Here
+
+This repository is a hands-on tour of modern "big data on a single machine": how far you can push a laptop, and then a single GPU, once you stop loading everything into memory and let a query optimiser do the work. It is part tutorial, part benchmark.
+
+**What you will learn**
+
+- Why query optimisation matters, and how Polars brings database-grade planning to a DataFrame API, shown on a 50GB, 1.5-billion-row NYC taxi dataset processed on a 32GB laptop.
+- How GPU acceleration fits in through Polars' GPU engine, and where it actually helps.
+- What a rigorous, honest benchmark says: the official TPC-H suite run on an RTX 4090, comparing CPU, GPU, UVM, and DuckDB, with the real numbers and a clear "when to use which".
+
+**The journey, in five parts**
+
+1. The problem ([Overview](#overview)): the memory wall, and why query planning is the way out.
+2. Polars on a laptop ([queries 1 to 5](#1-count-rows-efficiently-full-dataset-scan)): five queries over 1.5 billion taxi rows, with the optimiser explained and its query plans laid bare.
+3. Adding a GPU ([Here Come the Hotstepper](#here-come-the-hotstepper-gpu-acceleration)): the Polars GPU engine, its configuration, and its limits.
+4. The benchmark ([Performance Results](#performance-results-cpu-vs-gpu)): real TPC-H numbers across five engines, the honest findings, and an engine scorecard.
+5. Choosing an engine ([Key Takeaways](#key-takeaways)), backed by a [troubleshooting](#enhanced-troubleshooting-guide) reference.
+
+**Two ways to read this**
+
+- New to Polars? Start at the top and read straight through; each query builds on the last.
+- Here for the benchmarks? Jump to [Performance Results: CPU vs GPU](#performance-results-cpu-vs-gpu) for the measured TPC-H comparison, or straight to the bottom-line [engine scorecard](#benchmark-results).
 
 ## Overview
 
@@ -878,13 +905,15 @@ on GPU. Every engine reads the identical float data, so the comparison stays fai
 
 Total wall-clock to run all 22 TPC-H queries (median of 3 iterations), in seconds:
 
-| Engine | SF10 | SF100 |
-|--------|-----:|------:|
-| DuckDB | 3.0 | 23.8 |
-| Polars GPU (cuda-async) | 3.4 | 42.8 |
-| Polars CPU (streaming) | 3.6 | 38.1 |
-| Polars CPU (in-memory) | 6.9 | 75.4 |
-| Polars GPU (managed / UVM) | 17.4 | 197.5 |
+| Engine | SF10 | SF100 | Where it wins |
+|--------|-----:|------:|---------------|
+| **DuckDB** | 3.0 | 23.8 | Overall champion at both scales on join and aggregation heavy SQL analytics |
+| **Polars GPU (cuda-async)** | 3.4 | 42.8 | ~2x over CPU in-memory at SF10; compute-dense work that fits VRAM |
+| **Polars CPU (streaming)** | 3.6 | 38.1 | Best CPU speed/memory trade-off; beats the GPU at SF100 |
+| **Polars CPU (in-memory)** | 6.9 | 75.4 | Simplest path; small data and prototyping |
+| **Polars GPU (managed / UVM)** | 17.4 | 197.5 | Only when a single query genuinely exceeds VRAM |
+
+At SF10 the top three are within ~0.6s of each other and the GPU delivers a real 2x over CPU in-memory; at SF100 DuckDB pulls clearly ahead while the GPU edge narrows because more data has to cross PCIe.
 
 ![Per-query runtime at SF10](./benchmarks/plots/per_query_sf10.png)
 
@@ -944,22 +973,6 @@ Reproduce the full sweep with:
 # render the Tahoma-styled plots locally from the results
 .venv/bin/python -m benchmarks.run --plot-only
 ```
-
-#### Engine Scorecard
-
-Total wall-clock for all 22 TPC-H queries (median of 3 iterations), in seconds:
-
-| Engine | SF10 | SF100 | Where it wins |
-|--------|-----:|------:|---------------|
-| **DuckDB** | 3.0 | 23.8 | Overall champion at both scales on join and aggregation heavy SQL analytics |
-| **Polars GPU (cuda-async)** | 3.4 | 42.8 | ~2x over CPU in-memory at SF10; compute-dense work that fits VRAM |
-| **Polars CPU (streaming)** | 3.6 | 38.1 | Best CPU speed/memory trade-off; beats the GPU at SF100 |
-| **Polars CPU (in-memory)** | 6.9 | 75.4 | Simplest path; small data and prototyping |
-| **Polars GPU (managed / UVM)** | 17.4 | 197.5 | Only when a single query genuinely exceeds VRAM |
-
-At SF10 the top three are within ~0.6s of each other; the GPU delivers a real 2x
-over CPU in-memory. At SF100 DuckDB pulls clearly ahead, and the GPU edge narrows
-because more data has to cross PCIe, so it falls behind CPU streaming.
 
 #### When to Use Which
 
@@ -1127,6 +1140,9 @@ The Polars approach combines the best of both worlds: sophisticated query optimi
 | **Top pickup locations** | GroupBy pushdown, column pruning | **Excellent** (5-15x speedup) |
 | **Daily revenue for 2016** | Date filtering pushdown | Good (2-5x speedup) |
 | **Find longest trips** | Filter + sort optimisation | Good (2-5x speedup) |
+
+> [!NOTE]
+> The GPU speedup figures above are per-operation potential, not measured end-to-end results. On the full TPC-H suite we actually ran (see [Performance Results](#performance-results-cpu-vs-gpu)), the GPU was about 2x faster than the CPU in-memory engine at SF10 and fell behind DuckDB and CPU streaming at SF100, because that workload is I/O and join bound rather than compute bound. Treat per-operation speedups as an upper bound a whole pipeline rarely reaches.
 
 ### Enhanced Streaming Decision Guidance
 
